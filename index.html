@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>qPCR Layout - 屏幕显示与A4打印平衡版</title>
+    <style>
+        :root {
+            --primary: #4a69bd;
+            --bg: #f8faff;
+            --header-red: #ff4d4d;
+            --sidebar-width: 380px; 
+            --well-96: 60px; 
+            --well-384: 34px; /* 屏幕显示尺寸调大 */
+        }
+        body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; user-select: none; }
+        .container { display: flex; gap: 20px; max-width: 100%; }
+        
+        /* 侧边栏 */
+        .sidebar { width: var(--sidebar-width); flex-shrink: 0; }
+        .stat-card { background: #1e272e; color: white; padding: 20px; border-radius: 16px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+        .card { background: white; padding: 18px; border-radius: 16px; border: 1px solid #e1e8ef; margin-bottom: 12px; }
+        .card-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: var(--primary); border-left: 4px solid var(--primary); padding-left: 10px; }
+
+        /* 填充按钮 */
+        .btn-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .tool-btn { aspect-ratio: 1; border-radius: 10px; border: 1px solid #f1f2f6; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; font-weight: bold; transition: 0.2s; }
+        .tool-btn:hover { border-color: var(--primary); transform: scale(1.05); }
+        .tool-btn span { font-size: 24px; font-weight: 900; text-shadow: 1px 0 0 currentColor; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+
+        /* 主画板 */
+        .board { flex-grow: 1; background: white; padding: 25px; border-radius: 20px; border: 1px solid #e1e8ef; overflow: auto; min-width: 0; }
+        .grid { display: grid; gap: 0px; margin-top: 15px; width: fit-content; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
+        
+        .header-cell { display: flex; align-items: center; justify-content: center; color: var(--header-red); font-weight: 900; cursor: pointer; font-size: 16px; }
+
+        .well-wrapper { display: flex; align-items: center; justify-content: center; }
+        .well { 
+            border-radius: 50%; background: #fff; border: 1.5px solid #d1d8e0; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 900; cursor: cell; transition: 0.1s;
+        }
+        /* 屏幕上的大尺寸 */
+        .well-96-size { width: var(--well-96); height: var(--well-96); font-size: 30px; text-shadow: 1px 0 0 #000; }
+        .well-384-size { width: var(--well-384); height: var(--well-384); font-size: 20px; text-shadow: 0.8px 0 0 #000; }
+        
+        .well.selected { outline: 3px solid var(--primary); outline-offset: 2px; z-index: 10; }
+        .well.temp { background: #e0e7ff !important; }
+
+        .action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; margin-top: 8px; }
+        .primary { background: var(--primary); color: white; }
+        .danger { background: #fff0f0; color: #ff7675; border: 1px solid #ff7675; }
+
+        /* ==================== 智能打印系统 ==================== */
+        @media print {
+            @page { size: A4 landscape; margin: 0.5cm; }
+            body { background: white; padding: 0; }
+            .sidebar, p { display: none !important; }
+            .board { border: none; padding: 0; width: 100%; }
+            
+            /* 384孔板打印：自动撑满横向宽度 */
+            .grid-print { 
+                transform: scale(0.68); /* 相比之前调大了缩放比 */
+                transform-origin: top left;
+                width: 140%; /* 补偿缩放后的空白 */
+            }
+            /* 96孔板打印：适度放大 */
+            .grid-print-96 {
+                transform: scale(0.95);
+                transform-origin: top left;
+            }
+            .well { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+                border: 1px solid #000 !important; /* 打印时线框更黑 */
+            }
+        }
+    </style>
+</head>
+<body onmouseup="endDrag()">
+
+<div class="container">
+    <div class="sidebar">
+        <div class="stat-card">
+            <div><div style="opacity: 0.7; font-size: 11px;">已填孔位</div><div id="stat-used" style="font-size: 28px; font-weight: bold;">0</div></div>
+            <div style="text-align: right;"><div style="opacity: 0.7; font-size: 11px;">选中数量</div><div id="stat-sel" style="font-size: 28px; font-weight: bold; color: #74b9ff;">0</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">实验参数设计</div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="flex:1"><label style="font-size:11px;color:#666">样本(S)</label><input type="number" id="s-total" value="10" onchange="initTools()"></div>
+                <div style="flex:1"><label style="font-size:11px;color:#666">基因(G)</label><input type="number" id="g-total" value="10" onchange="initTools()"></div>
+            </div>
+            <div style="display:flex; background:#f1f2f6; border-radius:10px; padding:4px; gap:4px;">
+                <button id="b96" style="flex:1; border:none; padding:8px; border-radius:8px; cursor:pointer; background:white; font-weight:bold" onclick="changePlate(96)">96孔板</button>
+                <button id="b384" style="flex:1; border:none; padding:8px; border-radius:8px; cursor:pointer; background:transparent; font-weight:bold" onclick="changePlate(384)">384孔板</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">❶ 填充样本底色 (Sample)</div>
+            <div id="s-box" class="btn-grid"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="color:#2ecc71">❷ 填充基因符号 (Gene)</div>
+            <div id="g-box" class="btn-grid"></div>
+        </div>
+
+        <div class="card" style="background:transparent; border:none; padding:0;">
+            <button class="action-btn" style="background:#ecf0f1; color:#7f8c8d" onclick="unselectAll()">取消当前选中</button>
+            <button class="action-btn danger" onclick="clearData()">清空选中内容</button>
+            <button class="action-btn primary" onclick="handlePrint()" style="margin-top:10px; font-size:16px;">🖨️ 导出 A4 布局</button>
+        </div>
+    </div>
+
+    <div class="board">
+        <h2 id="print-title" style="margin: 0; font-size: 24px;">qPCR Layout Assistant</h2>
+        <p style="color: #636e72; font-size: 13px; margin-bottom: 15px;">点击红色行列标头选整行/列。384孔打印请选“横向”。</p>
+        <div id="grid-container" class="grid"></div>
+    </div>
+</div>
+
+<script>
+    let currentPlate = 96;
+    let selectedIds = new Set();
+    let plateData = {};
+    let isDragging = false, startId = null;
+
+    const morandiColors = ['#f8c291', '#6a89cc', '#b8e994', '#f7d794', '#82ccdd', '#cf6a87', '#786fa6', '#7ed6df', '#ffbe76', '#badc58', '#eccc68', '#ff7f50', '#70a1ff', '#7bed9f', '#ff6b81', '#a29bfe', '#fab1a0', '#ffeaa7', '#81ecec', '#d63031', '#00cec9', '#0984e3', '#6c5ce7', '#ffeaa7', '#fab1a0'];
+    const geneShapes = ['○', '△', '□', '☆', '◇', '▽', '✚', '✖', '✱', '◎'];
+
+    function initTools() {
+        const sCount = document.getElementById('s-total').value;
+        const gCount = document.getElementById('g-total').value;
+        document.getElementById('s-box').innerHTML = Array.from({length: sCount}, (_, i) => 
+            `<button class="tool-btn" style="background:${morandiColors[i%25]}" onclick="apply('s', ${i+1})">S${i+1}</button>`).join('');
+        document.getElementById('g-box').innerHTML = Array.from({length: gCount}, (_, i) => 
+            `<button class="tool-btn" onclick="apply('g', ${i+1})"><span>${geneShapes[i%10]}</span>G${i+1}</button>`).join('');
+        renderPlate();
+    }
+
+    function renderPlate() {
+        const container = document.getElementById('grid-container');
+        const rows = (currentPlate === 96 ? "ABCDEFGH" : "ABCDEFGHIJKLMNOP").split("");
+        const cols = currentPlate === 96 ? 12 : 24;
+        
+        // 动态设置打印样式类
+        container.className = `grid ${currentPlate === 96 ? 'grid-print-96' : 'grid-print'}`;
+        
+        const cellSize = currentPlate === 96 ? 70 : 40;
+        container.style.gridTemplateColumns = `45px repeat(${cols}, ${cellSize}px)`;
+        
+        let html = '<div class="header-cell"></div>';
+        for (let c = 1; c <= cols; c++) html += `<div class="header-cell" onclick="selectCol(${c}, event)">${c}</div>`;
+
+        rows.forEach((r, rIdx) => {
+            html += `<div class="header-cell" style="height:${cellSize}px" onclick="selectRow('${r}', event)">${r}</div>`;
+            for (let c = 1; c <= cols; c++) {
+                const id = r + c;
+                const d = plateData[id] || {};
+                html += `
+                <div class="well-wrapper" style="height:${cellSize}px">
+                    <div class="well ${currentPlate===96?'well-96-size':'well-384-size'} ${selectedIds.has(id)?'selected':''}" 
+                         id="well-${id}" data-id="${id}" data-r="${rIdx}" data-c="${c}"
+                         style="${d.s ? 'background:'+morandiColors[(d.s-1)%25] : ''}"
+                         onmousedown="startDrag(event,'${id}')" onmouseenter="doDrag('${id}')">
+                         ${d.g ? geneShapes[(d.g-1)%10] : ''}
+                    </div>
+                </div>`;
+            }
+        });
+        container.innerHTML = html;
+        document.getElementById('stat-sel').innerText = selectedIds.size;
+        document.getElementById('stat-used').innerText = Object.keys(plateData).length;
+    }
+
+    // 交互逻辑
+    function startDrag(e, id) { isDragging = true; startId = id; if (!e.ctrlKey) selectedIds.clear(); selectedIds.add(id); renderPlate(); }
+    function doDrag(curId) {
+        if (!isDragging) return;
+        document.querySelectorAll('.well').forEach(el => el.classList.remove('temp'));
+        const el1 = document.querySelector(`[data-id="${startId}"]`), el2 = document.querySelector(`[data-id="${curId}"]`);
+        const r1 = parseInt(el1.dataset.r), r2 = parseInt(el2.dataset.r);
+        const c1 = parseInt(el1.dataset.c), c2 = parseInt(el2.dataset.c);
+        const rows = (currentPlate === 96 ? "ABCDEFGH" : "ABCDEFGHIJKLMNOP");
+        for(let r=Math.min(r1,r2); r<=Math.max(r1,r2); r++) for(let c=Math.min(c1,c2); c<=Math.max(c1,c2); c++) document.getElementById('well-'+rows[r]+c)?.classList.add('temp');
+    }
+    function endDrag() { if (!isDragging) return; isDragging = false; document.querySelectorAll('.temp').forEach(el => selectedIds.add(el.dataset.id)); renderPlate(); }
+    function apply(type, val) { selectedIds.forEach(id => { if(!plateData[id]) plateData[id] = {}; plateData[id][type] = val; }); renderPlate(); }
+    function selectRow(r, e) { if(!e.ctrlKey) selectedIds.clear(); for(let c=1; c<=(currentPlate==96?12:24); c++) selectedIds.add(r+c); renderPlate(); }
+    function selectCol(c, e) { if(!e.ctrlKey) selectedIds.clear(); const rs = (currentPlate==96?"ABCDEFGH":"ABCDEFGHIJKLMNOP"); for(let i=0; i<rs.length; i++) selectedIds.add(rs[i]+c); renderPlate(); }
+    function changePlate(t) { currentPlate = t; plateData = {}; selectedIds.clear(); document.getElementById('b96').style.background = t===96?'white':'transparent'; document.getElementById('b384').style.background = t===384?'white':'transparent'; renderPlate(); }
+    function unselectAll() { selectedIds.clear(); renderPlate(); }
+    function clearData() { selectedIds.forEach(id => delete plateData[id]); renderPlate(); }
+    function handlePrint() { 
+        const title = prompt("请输入实验标题:", "qPCR Layout"); 
+        if (title) document.getElementById('print-title').innerText = title; 
+        window.print(); 
+    }
+
+    window.onload = initTools;
+</script>
+</body>
+</html>
