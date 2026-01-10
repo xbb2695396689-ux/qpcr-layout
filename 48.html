@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>qPCR 实验室分析终端 V23.6 - Excel 导出增强版</title>
+    <style>
+        :root { --accent: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f5f5f7; --card: #ffffff; --border: #d2d2d7; }
+        body { font-family: -apple-system, "SF Pro SC", sans-serif; background: var(--bg); padding: 15px; font-size: 13px; color: #1d1d1f; }
+        .glass-card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.04); margin-bottom: 20px; border: 1px solid #e5e5ea; }
+        .setup-grid { display: grid; grid-template-columns: 140px 1fr auto; gap: 20px; align-items: stretch; margin-bottom: 20px; }
+        .input-label { font-size: 11px; font-weight: 700; color: #86868b; margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+        .styled-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; transition: 0.2s; background: #fff; box-sizing: border-box; }
+        .ref-tags { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+        .ref-tag { background: #eee; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; color: #555; transition: 0.2s; }
+        .ref-tag:hover { background: var(--accent); color: white; }
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 12px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-main { background: linear-gradient(180deg, #359aff 0%, #007aff 100%); color: white; box-shadow: 0 4px 12px rgba(0,122,255,0.25); }
+        .btn-danger { background: #fff1f0; color: var(--danger); border: 1px solid #ffa39e; }
+        .btn-warn { background: #fff4e5; color: var(--warning); border: 1px solid #ffd591; }
+        .btn-clear { background: #f2f2f7; color: #3a3a3c; }
+        .btn-stash { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+        .table-container { overflow-x: auto; border: 1px solid #e5e5ea; background: #fff; border-radius: 8px; position: relative; }
+        table { border-collapse: collapse; table-layout: fixed; width: auto; }
+        th, td { border: 1px solid #efeff4; position: relative; }
+        th { background: #fbfbfd; font-size: 11px; color: #86868b; height: 35px; overflow: hidden; }
+        td { height: 32px; padding: 0; }
+        input.cell-input { width: 100%; height: 100%; border: none; text-align: center; font-size: 12px; background: transparent; outline: none; }
+        .gene-name-edit { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-weight: bold; font-size: 12px; outline: none; color: #000; }
+        .resizer { position: absolute; right: 0; top: 0; width: 4px; cursor: col-resize; height: 100%; z-index: 10; }
+        .resizer:hover { background: var(--accent); }
+        .ct-error { background-color: #fff1f0 !important; color: #ff4d4f !important; font-weight: bold; }
+        .ref-area { background-color: #f8f9ff; }
+        .gene-header { background-color: #ffff00 !important; color: #000; font-weight: bold; }
+        .group-avg-row { background-color: #f0fff4; font-weight: bold; }
+        .hidden { display: none !important; }
+        #stashIndicator { font-size: 11px; background: #52c41a; color: white; padding: 2px 8px; border-radius: 10px; margin-left: 5px; display: none; }
+        .group-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; background: #f9f9fb; padding: 10px 15px; border-radius: 10px; border-left: 4px solid #d2d2d7; }
+        .col-avg, .col-raw, .col-norm { min-width: 70px; }
+        .anova-card { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
+        .stats-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; border: 1px solid #e5e5ea; border-radius: 8px; overflow: hidden; }
+        .stats-table th { background: #f9f9fb; padding: 10px; color: #1d1d1f; border-bottom: 1px solid #eee; }
+        .stats-table td { padding: 10px; border-bottom: 1px solid #f2f2f7; text-align: center; }
+        .sig-star { color: #ff3b30; font-weight: bold; margin-left: 4px; }
+        .highlight-gene-col { background-color: rgba(0, 122, 255, 0.05) !important; }
+        .res-norm:hover::after { content: attr(data-p-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 10px; white-space: pre; z-index: 100; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="glass-card">
+    <div class="setup-grid">
+        <div style="display:flex; flex-direction:column; gap:12px;">
+            <div><span class="input-label">重复孔 (n)</span><input type="number" id="repNum" class="styled-input" value="2" style="width:70px;"></div>
+            <div><span class="input-label">基因数量</span><input type="number" id="geneCount" class="styled-input" value="2" style="width:70px;"></div>
+            <div>
+                <span class="input-label">内参名称</span>
+                <input type="text" id="refGeneName" class="styled-input" list="refGeneList" value="GAPDH" style="width:110px;">
+                <datalist id="refGeneList">
+                    <option value="GAPDH">
+                    <option value="ACTB">
+                    <option value="18S">
+                    <option value="B2M">
+                    <option value="HPRT1">
+                </datalist>
+                <div class="ref-tags">
+                    <span class="ref-tag" onclick="setRef('GAPDH')">GAPDH</span>
+                    <span class="ref-tag" onclick="setRef('ACTB')">ACTB</span>
+                    <span class="ref-tag" onclick="setRef('18S')">18S</span>
+                </div>
+            </div>
+        </div>
+        <div>
+            <span class="input-label">目的基因列表 (空格分隔)</span>
+            <textarea id="batchGeneInput" class="styled-input" style="height: 110px; resize: none;">Gene1 Gene2</textarea>
+        </div>
+        <button class="btn btn-main" style="width:120px; font-size: 15px;" onclick="initTable()">生成工作台</button>
+    </div>
+
+    <div id="groupList">
+        <div class="group-row">
+            <div style="display:flex; flex-direction:column;">
+                <span class="input-label" style="text-transform:none;">分组名称</span>
+                <input type="text" class="group-name styled-input" value="CON" style="width:160px;">
+            </div>
+            <div style="display:flex; flex-direction:column;">
+                <span class="input-label" style="text-transform:none;">样本数</span>
+                <input type="number" class="group-count styled-input" value="6" style="width:60px;">
+            </div>
+            <span style="font-size: 11px; color: #86868b; margin-top: 15px;">(默认基准)</span>
+        </div>
+    </div>
+    <button class="btn" style="background:#f2f2f7; color: #007aff; margin-top:5px; border: 1px dashed #007aff;" onclick="addGroup()">+ 新增分组</button>
+</div>
+
+<div class="glass-card" id="workspace" style="display:none;">
+    <div style="display:flex; gap:12px; margin-bottom:15px; align-items:center;">
+        <button class="btn btn-clear" onclick="clearData(true)">⚠️ 全部清除</button>
+        <button class="btn btn-stash" onclick="stashCurrentBatch()">📦 暂存当前基因数据</button>
+        <span id="stashIndicator"></span>
+        
+        <div style="display:inline-flex; align-items:center; gap:8px; background:#f2f2f7; padding:4px 10px; border-radius:8px; margin-left:5px; border:1px solid #d2d2d7;">
+            <span style="font-size:11px; color:#666;">全局列宽</span>
+            <input type="range" min="40" max="150" value="70" oninput="applyWebWidth(this.value)" style="cursor:pointer;">
+        </div>
+
+        <button class="btn btn-warn" onclick="clearData(false)">🧹 清空当前目的基因</button>
+        <div style="margin-left:auto; font-size:12px; display:flex; gap:15px;">
+            <label><input type="checkbox" id="toggleAvg" checked onchange="toggle()"> 均值</label>
+            <label><input type="checkbox" id="toggleRaw" checked onchange="toggle()"> 2^-ΔCt</label>
+            <label><input type="checkbox" id="toggleNorm" checked onchange="toggle()"> 标准化</label>
+        </div>
+        <button class="btn" style="background:var(--success); color:white; margin-left:auto;" onclick="exportExcel()">📥 导出(合并暂存) Excel</button>
+    </div>
+    
+    <div class="table-container">
+        <table id="mainTable">
+            <thead id="theader"></thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+
+    <div class="anova-card">
+        <h4 style="margin: 0 0 10px 0; color: #1d1d1f; font-size: 14px;">📊 显著性分析 (T-Test 双尾/等方差)</h4>
+        <div id="anovaResultsContainer">
+            <p style="color:#86868b; font-style: italic;">请输入各组数据以自动生成显著性分析...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let curRep, curGeneNames, refName;
+let stashedData = []; 
+let lastPValues = {};
+
+function setRef(name) { document.getElementById('refGeneName').value = name; }
+
+function syncGeneName(input, geneIndex) {
+    const newName = input.value.trim() || `Gene ${geneIndex + 1}`;
+    curGeneNames[geneIndex] = newName; 
+    const anovaHeaders = document.querySelectorAll('.stats-table th');
+    if (anovaHeaders.length > 0) anovaHeaders[geneIndex + 1].innerText = `${newName} (P值 / 显著性)`;
+}
+
+function applyWebWidth(px) {
+    const table = document.getElementById('mainTable');
+    if(!table) return;
+    const cells = table.querySelectorAll('th, td');
+    cells.forEach(cell => {
+        cell.style.width = px + "px";
+        cell.style.minWidth = px + "px";
+    });
+}
+
+function addGroup() {
+    const div = document.createElement('div');
+    div.className = 'group-row';
+    div.innerHTML = `<div style="display:flex; flex-direction:column;"><span class="input-label" style="text-transform:none;">分组名称</span><input type="text" class="group-name styled-input" value="实验组" style="width:160px;"></div><div style="display:flex; flex-direction:column;"><span class="input-label" style="text-transform:none;">样本数</span><input type="number" class="group-count styled-input" value="6" style="width:60px;"></div><button class="btn btn-danger" onclick="this.parentElement.remove()" style="margin-left:auto; height: 32px; margin-top: 10px;">删除</button>`;
+    document.getElementById('groupList').appendChild(div);
+}
+
+function initTable() {
+    const inputNames = document.getElementById('batchGeneInput').value.trim().split(/\s+/).filter(n => n !== "");
+    const targetCount = parseInt(document.getElementById('geneCount').value) || 1;
+    curGeneNames = [];
+    for(let i=0; i<targetCount; i++) curGeneNames.push(inputNames[i] || `Gene ${i+1}`);
+    curRep = parseInt(document.getElementById('repNum').value);
+    refName = document.getElementById('refGeneName').value;
+    
+    let h1 = `<tr><th rowspan="3" style="width:100px;">分组<div class="resizer"></div></th><th rowspan="3" style="width:120px;">样本<div class="resizer"></div></th><th colspan="${curRep + 1}" class="ref-header-main ref-area">${refName}</th>`;
+    curGeneNames.forEach((n, gi) => { h1 += `<th colspan="${curRep + 3}" class="gene-header-main gene-header" style="padding:0;"><input type="text" class="gene-name-edit" value="${n}" oninput="syncGeneName(this, ${gi})"></th>`; });
+    h1 += `</tr><tr><th colspan="${curRep}" class="ref-area">Ct值</th><th rowspan="2" class="col-avg ref-area">Avg</th>`;
+    curGeneNames.forEach(n => h1 += `<th colspan="${curRep}">${n} Ct</th><th rowspan="2" class="col-avg">Avg</th><th rowspan="2" class="col-raw">2^-ΔCt</th><th rowspan="2" class="col-norm">标准化</th>`);
+    h1 += `</tr><tr>`;
+    for(let j=1; j<=curRep; j++) h1 += `<th class="ref-area">R${j}</th>`;
+    curGeneNames.forEach(() => { for(let j=1; j<=curRep; j++) h1 += `<th>R${j}</th>`; });
+    h1 += `</tr>`;
+    
+    document.getElementById('theader').innerHTML = h1;
+    let rows = '';
+    document.querySelectorAll('.group-row').forEach((gr, gIdx) => {
+        const name = gr.querySelector('.group-name').value;
+        const count = parseInt(gr.querySelector('.group-count').value);
+        for(let i=0; i<count; i++) {
+            rows += `<tr class="data-row" data-group="${gIdx}" data-sample-idx="${i}">${i===0 ? `<td rowspan="${count+1}" class="group-td" style="background:#f9f9f9; text-align:center; font-weight:bold; border-right:1.5px solid #d2d2d7;">${name}</td>` : ''}<td><input type="text" class="cell-input s-name" value="S${i+1}"></td>`;
+            for(let j=0; j<curRep; j++) rows += `<td class="ref-area"><input type="text" class="cell-input ref-in" oninput="calc()"></td>`;
+            rows += `<td class="res-ref-avg col-avg ref-area" style="text-align:center;">-</td>`;
+            curGeneNames.forEach((n, gi) => {
+                for(let j=0; j<curRep; j++) rows += `<td data-gene-col="${gi}"><input type="text" class="cell-input tar-in" data-gene="${gi}" oninput="calc()"></td>`;
+                rows += `<td class="res-tar-avg col-avg" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-raw-val col-raw" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-norm col-norm" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center; font-weight:bold;">-</td>`;
+            });
+            rows += `</tr>`;
+        }
+        rows += `<tr class="group-avg-row" data-group-avg="${gIdx}"><td style="text-align:center; color:#666; font-size:11px;">组均值:</td><td colspan="${curRep + 1}" class="ref-area"></td>`;
+        curGeneNames.forEach((n, gi) => { rows += `<td colspan="${curRep + 1}" data-gene-col="${gi}"></td><td class="res-group-raw col-raw" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-group-norm col-norm" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td>`; });
+        rows += `</tr>`;
+    });
+    document.getElementById('tbody').innerHTML = rows;
+    document.getElementById('workspace').style.display = 'block';
+    initResizers(); toggle(); bindPaste(); bindHoverSync();
+}
+
+function bindHoverSync() {
+    document.getElementById('mainTable').addEventListener('mouseover', e => {
+        const target = e.target.closest('[data-gene-col]');
+        if(target) {
+            const geneIdx = target.getAttribute('data-gene-col');
+            document.querySelectorAll(`[data-gene-col="${geneIdx}"]`).forEach(el => el.classList.add('highlight-gene-col'));
+            const anovaTable = document.querySelector('.stats-table');
+            if(anovaTable) {
+                const colIdx = parseInt(geneIdx) + 2; 
+                anovaTable.querySelectorAll(`tr td:nth-child(${colIdx}), tr th:nth-child(${colIdx})`).forEach(el => el.classList.add('highlight-gene-col'));
+            }
+        }
+    });
+    document.getElementById('mainTable').addEventListener('mouseout', e => {
+        document.querySelectorAll('.highlight-gene-col').forEach(el => el.classList.remove('highlight-gene-col'));
+    });
+}
+
+function getSD(vals) {
+    if (vals.length <= 1) return 0;
+    const mean = vals.reduce((a, b) => a + b) / vals.length;
+    return Math.sqrt(vals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (vals.length - 1));
+}
+
+function calculateTTest(a, b) {
+    if (a.length < 2 || b.length < 2) return 1;
+    const n1 = a.length, n2 = b.length;
+    const m1 = a.reduce((s, v) => s + v, 0) / n1;
+    const m2 = b.reduce((s, v) => s + v, 0) / n2;
+    const v1 = a.reduce((s, v) => s + Math.pow(v - m1, 2), 0) / (n1 - 1);
+    const v2 = b.reduce((s, v) => s + Math.pow(v - m2, 2), 0) / (n2 - 1);
+    const pooledVar = ((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2);
+    if (pooledVar === 0) return m1 === m2 ? 1 : 0;
+    const tStat = Math.abs(m1 - m2) / Math.sqrt(pooledVar * (1 / n1 + 1 / n2));
+    const df = n1 + n2 - 2;
+    return betaInc(df / (df + Math.pow(tStat, 2)), df / 2, 0.5);
+}
+
+function betaInc(x, a, b) {
+    if (x === 0) return 0; if (x === 1) return 1;
+    const lnx = Math.log(x), ln1x = Math.log(1 - x);
+    let bt = Math.exp(gammaLog(a + b) - gammaLog(a) - gammaLog(b) + a * lnx + b * ln1x);
+    if (x < (a + 1) / (a + b + 2)) return bt * betacf(x, a, b) / a;
+    return 1 - bt * betacf(1 - x, b, a) / b;
+}
+function betacf(x, a, b) {
+    let qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < 1e-10) d = 1e-10; d = 1 / d; let h = d;
+    for (let m = 1; m <= 100; m++) {
+        let m2 = 2 * m, aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+        d = 1 + aa * d; if (Math.abs(d) < 1e-10) d = 1e-10;
+        c = 1 + aa / c; if (Math.abs(c) < 1e-10) c = 1e-10;
+        d = 1 / d;
+        h *= d * c;
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+        d = 1 + aa * d; if (Math.abs(d) < 1e-10) d = 1e-10;
+        c = 1 + aa / c; if (Math.abs(c) < 1e-10) c = 1e-10;
+        d = 1 / d;
+        h *= d * c;
+        if (Math.abs(d * c - 1) < 1e-7) break;
+    }
+    return h;
+}
+function gammaLog(z) {
+    let p = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - gammaLog(1 - z);
+    z -= 1;
+    let x = 0.99999999999980993;
+    for (let i = 0; i < p.length; i++) x += p[i] / (z + i + 1);
+    let t = z + p.length - 0.5;
+    return Math.log(Math.sqrt(2 * Math.PI)) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+}
+
+function calc() {
+    const rows = document.querySelectorAll('.data-row');
+    const avgRows = document.querySelectorAll('.group-avg-row');
+    let matrix = [];
+    let baseline = Array(curGeneNames.length).fill(0);
+    
+    rows.forEach((row, rIdx) => {
+        const refInputs = Array.from(row.querySelectorAll('.ref-in'));
+        const refVs = refInputs.map(i => parseFloat(i.value)).filter(v => !isNaN(v));
+        const aRef = refVs.length ? refVs.reduce((a,b)=>a+b)/refVs.length : NaN;
+        const refSD = getSD(refVs);
+        refInputs.forEach(i => i.classList.toggle('ct-error', refSD > 0.5));
+        row.querySelector('.res-ref-avg').innerText = isNaN(aRef) ? '-' : aRef.toFixed(2);
+        matrix[rIdx] = [];
+    
+        curGeneNames.forEach((n, gi) => {
+            const tarInputs = Array.from(row.querySelectorAll(`.tar-in[data-gene="${gi}"]`));
+            const tarVs = tarInputs.map(i => parseFloat(i.value)).filter(v => !isNaN(v));
+            const aTar = tarVs.length ? tarVs.reduce((a,b)=>a+b)/tarVs.length : NaN;
+            const tarSD = getSD(tarVs);
+            tarInputs.forEach(i => i.classList.toggle('ct-error', tarSD > 0.5));
+        
+            const raw = (isNaN(aRef) || isNaN(aTar)) ? NaN : Math.pow(2, aRef - aTar);
+            row.querySelector(`.res-tar-avg[data-gene="${gi}"]`).innerText = isNaN(aTar) ? '-' : aTar.toFixed(2);
+            row.querySelector(`.res-raw-val[data-gene="${gi}"]`).innerText = isNaN(raw) ? '-' : raw.toFixed(6);
+            matrix[rIdx][gi] = raw;
+        });
+    });
+    curGeneNames.forEach((n, gi) => {
+        let s=0, c=0; rows.forEach((r, idx) => { if(r.dataset.group === "0" && !isNaN(matrix[idx][gi])) { s += matrix[idx][gi]; c++; } });
+        baseline[gi] = s/c;
+    });
+    let groupStats = {}, anovaRawData = {};
+    rows.forEach((row, rIdx) => {
+        const gIdx = row.dataset.group; 
+        if(!groupStats[gIdx]) groupStats[gIdx] = Array.from({length: curGeneNames.length}, () => ({rawSum:0, normSum:0, count:0}));
+        curGeneNames.forEach((n, gi) => {
+            const norm = matrix[rIdx][gi] / (baseline[gi] || 1);
+            row.querySelector(`.res-norm[data-gene="${gi}"]`).innerText = isNaN(norm) ? '-' : norm.toFixed(4);
+            if(!isNaN(norm)) { 
+                groupStats[gIdx][gi].rawSum += matrix[rIdx][gi]; groupStats[gIdx][gi].normSum += norm; groupStats[gIdx][gi].count++; 
+                if(!anovaRawData[gi]) anovaRawData[gi] = {}; if(!anovaRawData[gi][gIdx]) anovaRawData[gi][gIdx] = [];
+                anovaRawData[gi][gIdx].push(norm);
+            }
+        });
+    });
+    avgRows.forEach(avgRow => {
+        const gIdx = avgRow.dataset.groupAvg;
+        curGeneNames.forEach((n, gi) => {
+            const stats = groupStats[gIdx] ? groupStats[gIdx][gi] : null;
+            const rawAvg = (stats && stats.count > 0) ? stats.rawSum / stats.count : NaN;
+            const normAvg = (stats && stats.count > 0) ? stats.normSum / stats.count : NaN;
+            avgRow.querySelector(`.res-group-raw[data-gene="${gi}"]`).innerText = isNaN(rawAvg) ? '-' : rawAvg.toFixed(6);
+            avgRow.querySelector(`.res-group-norm[data-gene="${gi}"]`).innerText = isNaN(normAvg) ? '-' : normAvg.toFixed(4);
+        });
+    });
+    renderAnovaTable(anovaRawData);
+    updateCellTooltips();
+}
+
+function updateCellTooltips() {
+    document.querySelectorAll('.res-norm').forEach(cell => {
+        const geneIdx = cell.getAttribute('data-gene');
+        const row = cell.closest('tr');
+        if(!row) return;
+        const gIdx = row.getAttribute('data-group');
+        if(gIdx == 0) { cell.setAttribute('data-p-tip', "对照组 (基准)"); } else {
+            let pStr = "暂无对比数据";
+            if(lastPValues[geneIdx]) {
+                const pItem = lastPValues[geneIdx].find(p => p.comp === `0vs${gIdx}`);
+                if(pItem) pStr = `显著性 (vs 对照组):\nP值: ${pItem.p.toFixed(4)}\n状态: ${getSigStars(pItem.p)}`;
+            }
+            cell.setAttribute('data-p-tip', pStr);
+        }
+    });
+}
+
+function renderAnovaTable(anovaRawData) {
+    const container = document.getElementById('anovaResultsContainer');
+    const groupNames = Array.from(document.querySelectorAll('.group-name')).map(input => input.value);
+    if (groupNames.length < 2) { container.innerHTML = `<p style="color:#86868b; font-style: italic;">至少需要两组数据进行对比分析。</p>`; return; }
+    lastPValues = performANOVA(anovaRawData);
+    let html = `<table class="stats-table"><thead><tr><th>对比组合</th>`;
+    curGeneNames.forEach(n => html += `<th>${n} (P值 / 显著性)</th>`);
+    html += `</tr></thead><tbody>`;
+    for(let i=0; i<groupNames.length; i++) {
+        for(let j=i+1; j<groupNames.length; j++) {
+            html += `<tr><td style="font-weight:600;">${groupNames[i]} vs ${groupNames[j]}</td>`;
+            curGeneNames.forEach((n, gi) => {
+                let p = 1; if(lastPValues[gi]) { let match = lastPValues[gi].find(pItem => pItem.comp === `${i}vs${j}`); if(match) p = match.p; }
+                let star = getSigStars(p); html += `<td>${p === 1 ? '-' : p.toFixed(4)} <span class="sig-star">${star}</span></td>`;
+            });
+            html += `</tr>`;
+        }
+    }
+    html += `</tbody></table>`; container.innerHTML = html;
+}
+
+function performANOVA(groupData) {
+    let results = {};
+    for(let gi in groupData) {
+        let groups = groupData[gi]; let pairwise = [];
+        let gKeys = Object.keys(groups);
+        for(let i=0; i<gKeys.length; i++) {
+            for(let j=i+1; j<gKeys.length; j++) {
+                let p = calculateTTest(groups[gKeys[i]], groups[gKeys[j]]);
+                pairwise.push({ comp: `${gKeys[i]}vs${gKeys[j]}`, p: p });
+            }
+        }
+        results[gi] = pairwise;
+    }
+    return results;
+}
+
+function getSigStars(p) { if (p < 0.001) return "***"; if (p < 0.01) return "**"; if (p < 0.05) return "*"; return "ns"; }
+
+function initResizers() {
+    document.querySelectorAll('th').forEach(th => {
+        const resizer = th.querySelector('.resizer'); if (!resizer) return;
+        resizer.addEventListener('mousedown', function(e) {
+            const startX = e.pageX, startWidth = th.offsetWidth;
+            const onMouseMove = e => th.style.width = (startWidth + (e.pageX - startX)) + 'px';
+            const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+            document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+}
+
+function stashCurrentBatch() {
+    const rows = document.querySelectorAll('.data-row');
+    curGeneNames.forEach((name, gi) => {
+        const geneBundle = { name: name, rows: [] };
+        rows.forEach(row => { geneBundle.rows.push({ cts: Array.from(row.querySelectorAll(`.tar-in[data-gene="${gi}"]`)).map(i => i.value), gIdx: row.dataset.group, sIdx: row.dataset.sampleIdx }); });
+        stashedData.push(geneBundle);
+    });
+    const indicator = document.getElementById('stashIndicator');
+    indicator.innerText = `已暂存 ${stashedData.length} 个基因`; indicator.style.display = 'inline-block';
+}
+
+function toggle() {
+    const showAvg = document.getElementById('toggleAvg').checked;
+    const showRaw = document.getElementById('toggleRaw').checked;
+    const showNorm = document.getElementById('toggleNorm').checked;
+    document.querySelectorAll('.col-avg').forEach(e => e.classList.toggle('hidden', !showAvg));
+    document.querySelectorAll('.col-raw').forEach(e => e.classList.toggle('hidden', !showRaw));
+    document.querySelectorAll('.col-norm').forEach(e => e.classList.toggle('hidden', !showNorm));
+}
+
+function clearData(all) {
+    if(!confirm("确定清空数据吗？")) return;
+    document.querySelectorAll('.data-row').forEach(row => {
+        if(all) { row.querySelectorAll('.ref-in').forEach(i => i.value = ''); stashedData = []; document.getElementById('stashIndicator').style.display = 'none'; }
+        row.querySelectorAll('.tar-in').forEach(i => { i.value = ''; i.classList.remove('ct-error'); });
+    });
+    calc();
+}
+
+function bindPaste() {
+    document.getElementById('tbody').addEventListener('paste', e => {
+        e.preventDefault(); const data = e.clipboardData.getData('text').split(/\r\n|\n|\r/);
+        const startCell = e.target; const row = startCell.closest('tr'); if(!row) return;
+        const rows = Array.from(document.querySelectorAll('.data-row')); const sRI = rows.indexOf(row);
+        const rIs = Array.from(row.querySelectorAll('input.cell-input')); const sCI = rIs.indexOf(startCell);
+        data.forEach((line, i) => { if(!line.trim()) return; const cR = rows[sRI+i]; if(!cR) return; const cs = line.split('\t'); const cRIs = Array.from(cR.querySelectorAll('input.cell-input')); cs.forEach((val, j) => 
+        { const tI = cRIs[sCI+j]; if(tI) tI.value = val.trim(); }); });
+        calc();
+    });
+}
+
+function getColLetter(n) { let letter = ""; while (n >= 0) { letter = String.fromCharCode((n % 26) + 65) + letter; n = Math.floor(n / 26) - 1; } return letter; }
+
+function exportExcel() {
+    const finalGeneBundles = [...stashedData];
+    const uiRows = document.querySelectorAll('.data-row');
+    curGeneNames.forEach((name, gi) => {
+        const geneBundle = { name: name, rows: [] };
+        uiRows.forEach(row => { geneBundle.rows.push({ cts: Array.from(row.querySelectorAll(`.tar-in[data-gene="${gi}"]`)).map(i => i.value), gIdx: row.dataset.group, sIdx: row.dataset.sampleIdx }); });
+        finalGeneBundles.push(geneBundle);
+    });
+    const tempTable = document.createElement('table');
+    const rep = curRep;
+    
+    let h1 = `<tr><th rowspan="3">分组</th><th rowspan="3">样本</th><th colspan="${rep + 1}">${refName}</th>`;
+    finalGeneBundles.forEach(b => h1 += `<th colspan="${rep + 3}" style="background-color:#FFFF00; font-weight:bold;">${b.name}</th>`);
+    h1 += `</tr><tr><th colspan="${rep}">Ct值</th><th rowspan="2">Avg</th>`;
+    finalGeneBundles.forEach(b => h1 += `<th colspan="${rep}">${b.name} Ct</th><th rowspan="2">Avg</th><th rowspan="2">2^-ΔCt</th><th rowspan="2">标准化</th>`);
+    h1 += `</tr><tr>`;
+    for(let j=1; j<=rep; j++) h1 += `<th>R${j}</th>`;
+    finalGeneBundles.forEach(() => { for(let j=1; j<=rep; j++) h1 += `<th>R${j}</th>`; });
+    h1 += `</tr>`;
+
+    let bHtml = '';
+    const controlAvgRowIndices = []; 
+    let excelRowTracker = 4; 
+    const groupRangeInfo = [];
+    document.querySelectorAll('.group-row').forEach((groupEl, gIdx) => {
+        const gName = groupEl.querySelector('.group-name').value;
+        const gSize = parseInt(groupEl.querySelector('.group-count').value);
+        const startRow = excelRowTracker;
+
+        for(let sIdx=0; sIdx < gSize; sIdx++){
+            const currentRow = Array.from(uiRows).find(r => r.dataset.group == gIdx && r.dataset.sampleIdx == sIdx);
+            const refValues = currentRow ? Array.from(currentRow.querySelectorAll('.ref-in')).map(i => parseFloat(i.value)).filter(v => !isNaN(v)) : [];
+            const refErrStyle = getSD(refValues) > 0.5 ? 'style="background-color:#FFF1F0; color:#FF4D4F;"' : '';
+
+            bHtml += `<tr>`;
+            if(sIdx === 0) bHtml += `<td rowspan="${gSize+1}" style="text-align:center; font-weight:bold;">${gName}</td>`;
+            bHtml += `<td>${currentRow ? currentRow.querySelector('.s-name').value : 'S'+(sIdx+1)}</td>`;
+            const refAvgCol = getColLetter(rep + 2);
+            for(let j=0; j<rep; j++) bHtml += `<td ${refErrStyle}>${currentRow ? currentRow.querySelectorAll('.ref-in')[j].value : ''}</td>`;
+            bHtml += `<td>=AVERAGE(${getColLetter(2)}${excelRowTracker}:${getColLetter(rep+1)}${excelRowTracker})</td>`;
+            finalGeneBundles.forEach((bundle, bIdx) => {
+                const bundleData = bundle.rows.find(r => r.gIdx == gIdx && r.sIdx == sIdx);
+                const tarValues = bundleData ? bundleData.cts.map(v => parseFloat(v)).filter(v => !isNaN(v)) : [];
+                const tarErrStyle = getSD(tarValues) > 0.5 ? 'style="background-color:#FFF1F0; color:#FF4D4F;"' : '';
+                const geneStartColIdx = (rep + 3) + (bIdx * (rep + 3)); 
+                for(let j=0; j<rep; j++) bHtml += `<td ${tarErrStyle}>${bundleData ? bundleData.cts[j] : ''}</td>`;
+                const geneAvgCol = getColLetter(geneStartColIdx + rep);
+                bHtml += `<td>=AVERAGE(${getColLetter(geneStartColIdx)}${excelRowTracker}:${getColLetter(geneStartColIdx + rep - 1)}${excelRowTracker})</td>`;
+                bHtml += `<td>=IFERROR(POWER(2, ${refAvgCol}${excelRowTracker}-${geneAvgCol}${excelRowTracker}), "")</td>`;
+                bHtml += `<td class="norm-placeholder" data-gene-idx="${bIdx}">-</td>`;
+            });
+            bHtml += `</tr>`; excelRowTracker++;
+        }
+        const endRow = excelRowTracker - 1;
+        groupRangeInfo.push({name: gName, start: startRow, end: endRow});
+        if(gIdx === 0) controlAvgRowIndices.push(excelRowTracker);
+        bHtml += `<tr style="background-color:#F0FFF4; font-weight:bold;"><td>组均值:</td><td colspan="${rep+1}"></td>`;
+        finalGeneBundles.forEach((bundle, bIdx) => {
+            const rawCol = getColLetter((rep+3) + (bIdx*(rep+3)) + rep + 1);
+            const normCol = getColLetter((rep+3) + (bIdx*(rep+3)) + rep + 2);
+            bHtml += `<td colspan="${rep+1}"></td><td>=AVERAGE(${rawCol}${startRow}:${rawCol}${endRow})</td><td>=AVERAGE(${normCol}${startRow}:${normCol}${endRow})</td>`;
+        });
+        bHtml += `</tr>`; excelRowTracker++;
+    });
+
+    excelRowTracker += 1;
+    bHtml += `<tr></tr><tr style="background:#f2f2f7; font-weight:bold;"><td colspan="2">显著性对比 (两两比较)</td><td colspan="${rep+1}"></td>`;
+    finalGeneBundles.forEach(b => {
+        bHtml += `<td colspan="${rep+1}"></td><td colspan="2" style="background:#FFFF00; text-align:center;">${b.name} P值</td>`;
+    });
+    bHtml += `</tr>`;
+    excelRowTracker++;
+
+    // 修改点：两两比较循环逻辑
+    for(let i=0; i<groupRangeInfo.length; i++){
+        for(let j=i+1; j<groupRangeInfo.length; j++){
+            const gA = groupRangeInfo[i], gB = groupRangeInfo[j];
+            bHtml += `<tr><td colspan="2" style="font-weight:bold;">${gA.name} vs ${gB.name}</td><td colspan="${rep+1}"></td>`;
+            finalGeneBundles.forEach((b, bIdx) => {
+                const normCol = getColLetter((rep+3) + (bIdx*(rep+3)) + rep + 2);
+                bHtml += `<td colspan="${rep+1}"></td><td colspan="2" style="text-align:center;">=TTEST(${normCol}${gA.start}:${normCol}${gA.end}, ${normCol}${gB.start}:${normCol}${gB.end}, 2, 2)</td>`;
+            });
+            bHtml += `</tr>`;
+            excelRowTracker++;
+        }
+    }
+
+    tempTable.innerHTML = `<thead>${h1}</thead><tbody>${bHtml}</tbody>`;
+    const ctrlRow = controlAvgRowIndices[0];
+    tempTable.querySelectorAll('.norm-placeholder').forEach(td => {
+        const bIdx = parseInt(td.dataset.geneIdx); const row = td.parentElement.rowIndex + 1;
+        const rawCol = getColLetter((rep+3) + (bIdx*(rep+3)) + rep + 1);
+        td.innerText = `=${rawCol}${row}/${rawCol}$${ctrlRow}`;
+    });
+    const htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>table{border-collapse:collapse;} th,td{border:0.5pt solid #000;text-align:center;font-family:Arial;font-size:10pt;width:85px;white-space:nowrap;} td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){width:120px;}</style></head><body>${tempTable.outerHTML}</body></html>`;
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `qPCR报告_${new Date().getTime()}.xls`; a.click();
+}
+</script>
+</body>
+</html>
