@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>qPCR 实验室分析终端 V23.6 - Excel 导出增强版</title>
+    <title>qPCR 实验室分析终端 V23.8 - 全动态保留版</title>
     <style>
         :root { --accent: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f5f5f7; --card: #ffffff; --border: #d2d2d7; }
         body { font-family: -apple-system, "SF Pro SC", sans-serif; background: var(--bg); padding: 15px; font-size: 13px; color: #1d1d1f; }
@@ -73,7 +73,7 @@
             <span class="input-label">目的基因列表 (空格分隔)</span>
             <textarea id="batchGeneInput" class="styled-input" style="height: 110px; resize: none;">Gene1 Gene2</textarea>
         </div>
-        <button class="btn btn-main" style="width:120px; font-size: 15px;" onclick="initTable()">生成工作台</button>
+        <button class="btn btn-main" style="width:120px; font-size: 15px;" onclick="initTable()">同步并保留数据</button>
     </div>
 
     <div id="groupList">
@@ -158,7 +158,35 @@ function addGroup() {
     document.getElementById('groupList').appendChild(div);
 }
 
+/** * initTable V23.8 核心修改：
+ * 支持全维度（基因、样本、重复孔）数据保留
+ */
 function initTable() {
+    // 1. 深度备份当前工作台数据
+    const backupData = [];
+    const oldRows = document.querySelectorAll('.data-row');
+    oldRows.forEach(row => {
+        const gIdx = row.dataset.group;
+        const sIdx = row.dataset.sampleIdx;
+        const sName = row.querySelector('.s-name').value;
+        const refCts = Array.from(row.querySelectorAll('.ref-in')).map(i => i.value);
+        
+        // 目的基因按索引备份：backupData[gIdx][sIdx].genes[geneIdx] = [ct1, ct2...]
+        if(!backupData[gIdx]) backupData[gIdx] = [];
+        backupData[gIdx][sIdx] = {
+            sampleName: sName,
+            refCts: refCts,
+            geneCts: []
+        };
+        
+        // 查找该样本下所有已输入的基因数据
+        curGeneNames?.forEach((_, gi) => {
+            const geneInputs = Array.from(row.querySelectorAll(`.tar-in[data-gene="${gi}"]`));
+            backupData[gIdx][sIdx].geneCts[gi] = geneInputs.map(i => i.value);
+        });
+    });
+
+    // 2. 读取新配置
     const inputNames = document.getElementById('batchGeneInput').value.trim().split(/\s+/).filter(n => n !== "");
     const targetCount = parseInt(document.getElementById('geneCount').value) || 1;
     curGeneNames = [];
@@ -166,6 +194,7 @@ function initTable() {
     curRep = parseInt(document.getElementById('repNum').value);
     refName = document.getElementById('refGeneName').value;
     
+    // 3. 重新渲染表头 (支持 colspan 动态修复)
     let h1 = `<tr><th rowspan="3" style="width:100px;">分组<div class="resizer"></div></th><th rowspan="3" style="width:120px;">样本<div class="resizer"></div></th><th colspan="${curRep + 1}" class="ref-header-main ref-area">${refName}</th>`;
     curGeneNames.forEach((n, gi) => { h1 += `<th colspan="${curRep + 3}" class="gene-header-main gene-header" style="padding:0;"><input type="text" class="gene-name-edit" value="${n}" oninput="syncGeneName(this, ${gi})"></th>`; });
     h1 += `</tr><tr><th colspan="${curRep}" class="ref-area">Ct值</th><th rowspan="2" class="col-avg ref-area">Avg</th>`;
@@ -174,8 +203,9 @@ function initTable() {
     for(let j=1; j<=curRep; j++) h1 += `<th class="ref-area">R${j}</th>`;
     curGeneNames.forEach(() => { for(let j=1; j<=curRep; j++) h1 += `<th>R${j}</th>`; });
     h1 += `</tr>`;
-    
     document.getElementById('theader').innerHTML = h1;
+
+    // 4. 渲染数据行
     let rows = '';
     document.querySelectorAll('.group-row').forEach((gr, gIdx) => {
         const name = gr.querySelector('.group-name').value;
@@ -185,7 +215,7 @@ function initTable() {
             for(let j=0; j<curRep; j++) rows += `<td class="ref-area"><input type="text" class="cell-input ref-in" oninput="calc()"></td>`;
             rows += `<td class="res-ref-avg col-avg ref-area" style="text-align:center;">-</td>`;
             curGeneNames.forEach((n, gi) => {
-                for(let j=0; j<curRep; j++) rows += `<td data-gene-col="${gi}"><input type="text" class="cell-input tar-in" data-gene="${gi}" oninput="calc()"></td>`;
+                for(let j=1; j<=curRep; j++) rows += `<td data-gene-col="${gi}"><input type="text" class="cell-input tar-in" data-gene="${gi}" oninput="calc()"></td>`;
                 rows += `<td class="res-tar-avg col-avg" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-raw-val col-raw" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-norm col-norm" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center; font-weight:bold;">-</td>`;
             });
             rows += `</tr>`;
@@ -195,8 +225,30 @@ function initTable() {
         rows += `</tr>`;
     });
     document.getElementById('tbody').innerHTML = rows;
+
+    // 5. 将备份数据回填到新格子中 (智能映射)
+    const newRows = document.querySelectorAll('.data-row');
+    newRows.forEach(row => {
+        const g = row.dataset.group;
+        const s = row.dataset.sampleIdx;
+        if(backupData[g] && backupData[g][s]) {
+            const b = backupData[g][s];
+            row.querySelector('.s-name').value = b.sampleName;
+            // 回填内参 (旧 R1 填到新 R1...)
+            const refIns = row.querySelectorAll('.ref-in');
+            b.refCts.forEach((val, idx) => { if(refIns[idx]) refIns[idx].value = val; });
+            // 回填各目的基因
+            curGeneNames.forEach((_, gi) => {
+                const tarIns = row.querySelectorAll(`.tar-in[data-gene="${gi}"]`);
+                if(b.geneCts[gi]) {
+                    b.geneCts[gi].forEach((val, idx) => { if(tarIns[idx]) tarIns[idx].value = val; });
+                }
+            });
+        }
+    });
+
     document.getElementById('workspace').style.display = 'block';
-    initResizers(); toggle(); bindPaste(); bindHoverSync();
+    initResizers(); toggle(); bindPaste(); bindHoverSync(); calc();
 }
 
 function bindHoverSync() {
@@ -275,6 +327,7 @@ function gammaLog(z) {
 function calc() {
     const rows = document.querySelectorAll('.data-row');
     const avgRows = document.querySelectorAll('.group-avg-row');
+    if(rows.length === 0) return;
     let matrix = [];
     let baseline = Array(curGeneNames.length).fill(0);
     
@@ -412,12 +465,25 @@ function stashCurrentBatch() {
 }
 
 function toggle() {
+    if(!curRep) return;
     const showAvg = document.getElementById('toggleAvg').checked;
     const showRaw = document.getElementById('toggleRaw').checked;
     const showNorm = document.getElementById('toggleNorm').checked;
+    
     document.querySelectorAll('.col-avg').forEach(e => e.classList.toggle('hidden', !showAvg));
     document.querySelectorAll('.col-raw').forEach(e => e.classList.toggle('hidden', !showRaw));
     document.querySelectorAll('.col-norm').forEach(e => e.classList.toggle('hidden', !showNorm));
+
+    const activeStatsCount = (showAvg ? 1 : 0) + (showRaw ? 1 : 0) + (showNorm ? 1 : 0);
+    const newGeneColspan = curRep + activeStatsCount;
+    const newRefColspan = curRep + (showAvg ? 1 : 0);
+
+    const refHeader = document.querySelector('.ref-header-main');
+    if (refHeader) refHeader.setAttribute('colspan', newRefColspan);
+
+    document.querySelectorAll('.gene-header-main').forEach(th => {
+        th.setAttribute('colspan', newGeneColspan);
+    });
 }
 
 function clearData(all) {
@@ -516,7 +582,6 @@ function exportExcel() {
     bHtml += `</tr>`;
     excelRowTracker++;
 
-    // 修改点：两两比较循环逻辑
     for(let i=0; i<groupRangeInfo.length; i++){
         for(let j=i+1; j<groupRangeInfo.length; j++){
             const gA = groupRangeInfo[i], gB = groupRangeInfo[j];
