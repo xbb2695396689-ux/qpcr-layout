@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>qPCR 实验室分析终端 V23.8 - 全动态保留版</title>
+    <title>qPCR 实验室分析终端 V23.8 - 布局修复版</title>
     <style>
         :root { --accent: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f5f5f7; --card: #ffffff; --border: #d2d2d7; }
         body { font-family: -apple-system, "SF Pro SC", sans-serif; background: var(--bg); padding: 15px; font-size: 13px; color: #1d1d1f; }
@@ -158,11 +158,7 @@ function addGroup() {
     document.getElementById('groupList').appendChild(div);
 }
 
-/** * initTable V23.8 核心修改：
- * 支持全维度（基因、样本、重复孔）数据保留
- */
 function initTable() {
-    // 1. 深度备份当前工作台数据
     const backupData = [];
     const oldRows = document.querySelectorAll('.data-row');
     oldRows.forEach(row => {
@@ -170,23 +166,14 @@ function initTable() {
         const sIdx = row.dataset.sampleIdx;
         const sName = row.querySelector('.s-name').value;
         const refCts = Array.from(row.querySelectorAll('.ref-in')).map(i => i.value);
-        
-        // 目的基因按索引备份：backupData[gIdx][sIdx].genes[geneIdx] = [ct1, ct2...]
         if(!backupData[gIdx]) backupData[gIdx] = [];
-        backupData[gIdx][sIdx] = {
-            sampleName: sName,
-            refCts: refCts,
-            geneCts: []
-        };
-        
-        // 查找该样本下所有已输入的基因数据
+        backupData[gIdx][sIdx] = { sampleName: sName, refCts: refCts, geneCts: [] };
         curGeneNames?.forEach((_, gi) => {
             const geneInputs = Array.from(row.querySelectorAll(`.tar-in[data-gene="${gi}"]`));
             backupData[gIdx][sIdx].geneCts[gi] = geneInputs.map(i => i.value);
         });
     });
 
-    // 2. 读取新配置
     const inputNames = document.getElementById('batchGeneInput').value.trim().split(/\s+/).filter(n => n !== "");
     const targetCount = parseInt(document.getElementById('geneCount').value) || 1;
     curGeneNames = [];
@@ -194,7 +181,6 @@ function initTable() {
     curRep = parseInt(document.getElementById('repNum').value);
     refName = document.getElementById('refGeneName').value;
     
-    // 3. 重新渲染表头 (支持 colspan 动态修复)
     let h1 = `<tr><th rowspan="3" style="width:100px;">分组<div class="resizer"></div></th><th rowspan="3" style="width:120px;">样本<div class="resizer"></div></th><th colspan="${curRep + 1}" class="ref-header-main ref-area">${refName}</th>`;
     curGeneNames.forEach((n, gi) => { h1 += `<th colspan="${curRep + 3}" class="gene-header-main gene-header" style="padding:0;"><input type="text" class="gene-name-edit" value="${n}" oninput="syncGeneName(this, ${gi})"></th>`; });
     h1 += `</tr><tr><th colspan="${curRep}" class="ref-area">Ct值</th><th rowspan="2" class="col-avg ref-area">Avg</th>`;
@@ -205,7 +191,6 @@ function initTable() {
     h1 += `</tr>`;
     document.getElementById('theader').innerHTML = h1;
 
-    // 4. 渲染数据行
     let rows = '';
     document.querySelectorAll('.group-row').forEach((gr, gIdx) => {
         const name = gr.querySelector('.group-name').value;
@@ -220,13 +205,15 @@ function initTable() {
             });
             rows += `</tr>`;
         }
+        // 修复对齐：内参占 curRep+1 列，每个目的基因区域占 curRep+1 列 (Ct1..CtN + Avg)，然后是 Raw 和 Norm
         rows += `<tr class="group-avg-row" data-group-avg="${gIdx}"><td style="text-align:center; color:#666; font-size:11px;">组均值:</td><td colspan="${curRep + 1}" class="ref-area"></td>`;
-        curGeneNames.forEach((n, gi) => { rows += `<td colspan="${curRep + 1}" data-gene-col="${gi}"></td><td class="res-group-raw col-raw" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-group-norm col-norm" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td>`; });
+        curGeneNames.forEach((n, gi) => { 
+            rows += `<td colspan="${curRep + 1}" data-gene-col="${gi}"></td><td class="res-group-raw col-raw" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td><td class="res-group-norm col-norm" data-gene="${gi}" data-gene-col="${gi}" style="text-align:center;">-</td>`; 
+        });
         rows += `</tr>`;
     });
     document.getElementById('tbody').innerHTML = rows;
 
-    // 5. 将备份数据回填到新格子中 (智能映射)
     const newRows = document.querySelectorAll('.data-row');
     newRows.forEach(row => {
         const g = row.dataset.group;
@@ -234,15 +221,11 @@ function initTable() {
         if(backupData[g] && backupData[g][s]) {
             const b = backupData[g][s];
             row.querySelector('.s-name').value = b.sampleName;
-            // 回填内参 (旧 R1 填到新 R1...)
             const refIns = row.querySelectorAll('.ref-in');
             b.refCts.forEach((val, idx) => { if(refIns[idx]) refIns[idx].value = val; });
-            // 回填各目的基因
             curGeneNames.forEach((_, gi) => {
                 const tarIns = row.querySelectorAll(`.tar-in[data-gene="${gi}"]`);
-                if(b.geneCts[gi]) {
-                    b.geneCts[gi].forEach((val, idx) => { if(tarIns[idx]) tarIns[idx].value = val; });
-                }
+                if(b.geneCts[gi]) b.geneCts[gi].forEach((val, idx) => { if(tarIns[idx]) tarIns[idx].value = val; });
             });
         }
     });
@@ -484,6 +467,18 @@ function toggle() {
     document.querySelectorAll('.gene-header-main').forEach(th => {
         th.setAttribute('colspan', newGeneColspan);
     });
+
+    // 同时更新组均值行的 colspan 以维持对齐
+    document.querySelectorAll('.group-avg-row').forEach(row => {
+        const refCell = row.querySelector('.ref-area[colspan]');
+        if(refCell) refCell.setAttribute('colspan', newRefColspan);
+        row.querySelectorAll('td[data-gene-col][colspan]').forEach(td => {
+            // 排除结果单元格
+            if(!td.classList.contains('res-group-raw') && !td.classList.contains('res-group-norm')) {
+                td.setAttribute('colspan', curRep + (showAvg ? 1 : 0));
+            }
+        });
+    });
 }
 
 function clearData(all) {
@@ -497,12 +492,30 @@ function clearData(all) {
 
 function bindPaste() {
     document.getElementById('tbody').addEventListener('paste', e => {
-        e.preventDefault(); const data = e.clipboardData.getData('text').split(/\r\n|\n|\r/);
-        const startCell = e.target; const row = startCell.closest('tr'); if(!row) return;
-        const rows = Array.from(document.querySelectorAll('.data-row')); const sRI = rows.indexOf(row);
-        const rIs = Array.from(row.querySelectorAll('input.cell-input')); const sCI = rIs.indexOf(startCell);
-        data.forEach((line, i) => { if(!line.trim()) return; const cR = rows[sRI+i]; if(!cR) return; const cs = line.split('\t'); const cRIs = Array.from(cR.querySelectorAll('input.cell-input')); cs.forEach((val, j) => 
-        { const tI = cRIs[sCI+j]; if(tI) tI.value = val.trim(); }); });
+        const data = e.clipboardData.getData('text');
+        if (!data) return;
+        e.preventDefault();
+        const lines = data.split(/\r\n|\n|\r/);
+        const startCell = e.target;
+        const startRow = startCell.closest('tr');
+        if (!startRow || !startRow.classList.contains('data-row')) return;
+        
+        const allDataRows = Array.from(document.querySelectorAll('.data-row'));
+        const startRowIndex = allDataRows.indexOf(startRow);
+        const startInputs = Array.from(startRow.querySelectorAll('input.cell-input'));
+        const startColIndex = startInputs.indexOf(startCell);
+
+        lines.forEach((line, i) => {
+            if (!line.trim()) return;
+            const targetRow = allDataRows[startRowIndex + i];
+            if (!targetRow) return;
+            const cells = line.split('\t');
+            const targetInputs = Array.from(targetRow.querySelectorAll('input.cell-input'));
+            cells.forEach((val, j) => {
+                const targetInput = targetInputs[startColIndex + j];
+                if (targetInput) targetInput.value = val.trim();
+            });
+        });
         calc();
     });
 }
