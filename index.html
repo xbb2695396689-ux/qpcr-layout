@@ -2,6 +2,194 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <title>qPCR数据处理及标准化网页</title>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+    <style>
+        :root { --primary: #4f46e5; --excel-green: #107c10; --bg: #f1f5f9; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 0; overflow-x: hidden; }
+
+        /* 模式选择入口 */
+        .portal { display: flex; justify-content: center; align-items: center; min-height: 100vh; gap: 40px; flex-wrap: wrap; padding: 24px; box-sizing: border-box; }
+        .mode-card {
+            background: white; width: 320px; padding: 50px 20px; border-radius: 20px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); cursor: pointer; transition: 0.3s; border: 3px solid transparent;
+            user-select: none;
+        }
+        .mode-card:hover { transform: translateY(-10px); border-color: var(--primary); }
+        .mode-card h2 { font-size: 64px; margin: 0; color: var(--primary); }
+        .mode-card p { color: #64748b; font-size: 18px; font-weight: bold; margin-top: 10px; }
+
+        /* 主界面容器 - 改为满屏自适应 */
+        .container { display: none; padding: 10px 1vw; width: 98vw; margin: 0 auto; }
+
+        .header-nav {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; background: white; padding: 10px 20px;
+            border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            gap: 12px;
+        }
+        .header-nav-left { display:flex; align-items:center; gap:12px; min-width: 0; }
+        .header-nav-right { display:flex; align-items:center; gap:10px; }
+
+        .btn-back { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-jump { background: var(--primary); color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+        .btn-jump:hover { filter: brightness(0.95); }
+
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); }
+
+        /* 配置栏 - 更加紧凑以节省空间 */
+        .config-bar {
+            display: grid; grid-template-columns: 2.5fr 0.6fr 1.5fr 1.5fr;
+            gap: 15px; margin-bottom: 15px; padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0; align-items: end;
+        }
+
+        label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 5px; color: #1e293b; }
+        textarea, input { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; box-sizing: border-box; font-size: 13px; }
+
+        .layout { display: flex; gap: 20px; align-items: flex-start; }
+        .sidebar { width: 300px; flex-shrink: 0; }
+        .main { flex: 1; min-width: 0; }
+
+        /* 矩阵区域 - 满屏核心 */
+        .plate-grid {
+            display: grid;
+            gap: 1px;
+            background: #cbd5e1;
+            border: 2px solid #334155;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .cell {
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        /* 动态高度适配：确保不缩放也满屏 */
+        .mode-384 .cell { font-size: 0.65vw; height: 2.8vh; min-height: 22px; }
+        .mode-96 .cell { font-size: 0.8vw; height: 5.5vh; min-height: 35px; }
+
+        .cell-label { position: absolute; top: 1px; left: 2px; font-size: 0.5vw; color: #94a3b8; pointer-events: none; z-index: 1; }
+
+        .btn-export { background: var(--excel-green); color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; font-size: 14px; }
+        .btn-reset { background: #fee2e2; color: #dc2626; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; font-size: 13px; }
+
+        .visual-list { max-height: 55vh; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; margin-top: 10px; border-radius: 8px; }
+        .visual-item { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; display: flex; align-items: center; }
+        .visual-item b { color: var(--primary); margin-right: 10px; min-width: 20px; }
+
+        /* 终完3 内嵌容器 */
+        #terminalWrap { display:none; padding: 10px 1vw; width: 98vw; margin: 0 auto; }
+        .iframe-shell {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            height: calc(100vh - 70px);
+        }
+        #terminalFrame {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            display: block;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 入口：保留原来的两个按钮 + 新增一个按钮 -->
+<div id="portal" class="portal">
+    <div class="mode-card" onclick="enterMode(96)">
+        <h2>96</h2>
+        <p>孔板模式 (12行 × 8列)</p>
+    </div>
+    <div class="mode-card" onclick="enterMode(384)">
+        <h2>384</h2>
+        <p>孔板模式 (24行 × 16列)</p>
+    </div>
+
+    <!-- 新增：跳转到终完3（同文件内切换显示，不依赖文件跳转） -->
+    <div class="mode-card" onclick="enterTerminal()">
+        <h2 style="font-size:48px;">数据标准化</h2>
+        <p>qPCRCT值</p>
+    </div>
+</div>
+
+<!-- 双4 原应用 -->
+<div id="app" class="container">
+    <div class="header-nav">
+        <div class="header-nav-left">
+            <h3 id="modeTitle" style="margin:0; color:#1e293b; white-space:nowrap;">模式</h3>
+        </div>
+        <div class="header-nav-right">
+            <!-- 可选：在主界面也提供一个跳转按钮（不影响原逻辑，仅新增） -->
+            <button class="btn-jump" onclick="enterTerminal()">打开qPCR数据标准化</button>
+            <button class="btn-back" onclick="goBack()">← 返回切换</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="config-bar">
+            <div>
+                <label id="dataLabel">1. 粘贴原始读数</label>
+                <textarea id="rawData" style="height: 50px;" placeholder="粘贴数据后预览图将自动更新..." oninput="refresh()"></textarea>
+            </div>
+            <div>
+                <label>2. 重复数</label>
+                <input type="number" id="repNum" value="2" oninput="refresh()">
+            </div>
+            <div>
+                <label>3. 分组序列</label>
+                <input type="text" id="sampleSeq" value="6, 6" oninput="refresh()">
+                <div id="seqTip" style="font-size:11px; color:#64748b; margin-top:4px;"></div>
+            </div>
+            <div>
+                <button class="btn-export" onclick="exportExcel()">导出结果 (标黄居中)</button>
+                <button class="btn-reset" onclick="resetData()">重置数据</button>
+            </div>
+        </div>
+
+        <div class="layout">
+            <div class="sidebar">
+                <label>4. 粘贴基因名称 (Excel列)</label>
+                <textarea id="genePaste" style="height: 150px;" placeholder="粘贴基因列..." oninput="refresh()"></textarea>
+                <div class="visual-list" id="visualList"></div>
+            </div>
+            <div class="main">
+                <div id="plate" class="plate-grid"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 终完3 内嵌显示区（iframe + srcdoc，避免ID/脚本冲突） -->
+<div id="terminalWrap" class="container" style="display:none;">
+    <div class="header-nav">
+        <div class="header-nav-left">
+            <h3 style="margin:0; color:#1e293b; white-space:nowrap;">终完3：qPCR 实验室分析终端</h3>
+        </div>
+        <div class="header-nav-right">
+            <button class="btn-back" onclick="backToPortalFromTerminal()">← 返回切换</button>
+        </div>
+    </div>
+    <div class="iframe-shell">
+        <iframe id="terminalFrame" title="终完3 内嵌"></iframe>
+    </div>
+</div>
+
+<!-- 把“终完3.html”的完整内容原样内嵌到这里（text/plain 不执行） -->
+<template id="terminal-srcdoc">
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
     <title>qPCR 实验室分析终端 V23.8 - 布局修复版</title>
     <style>
         :root { --accent: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f5f5f7; --card: #ffffff; --border: #d2d2d7; }
@@ -620,6 +808,206 @@ function exportExcel() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `qPCR报告_${new Date().getTime()}.xls`; a.click();
 }
+</script>
+</body>
+</html>
+</template>
+</body>
+</html>
+</script>
+
+<script>
+    // ===== 双4 原逻辑（保持不变，仅增加“终完3”显示切换） =====
+    let currentMode = 96;
+    let dataMatrix = [];
+    let genes = [];
+    let groupConfig = [];
+
+    function enterMode(m) {
+        currentMode = m;
+        document.getElementById('portal').style.display = 'none';
+        document.getElementById('terminalWrap').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('modeTitle').innerText = `${m} 孔板模式`;
+
+        const plate = document.getElementById('plate');
+        plate.className = `plate-grid mode-${m}`;
+
+        if(m === 96) {
+            document.getElementById('sampleSeq').value = "6, 6";
+            document.getElementById('seqTip').innerText = "提示：12行 × 8列，高度和需=12";
+        } else {
+            document.getElementById('sampleSeq').value = "8, 8, 8";
+            document.getElementById('seqTip').innerText = "提示：24行 × 16列，高度和需=24";
+        }
+        refresh();
+    }
+
+    function goBack() {
+        document.getElementById('portal').style.display = 'flex';
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('terminalWrap').style.display = 'none';
+    }
+
+    function resetData() {
+        if(confirm("确定清空吗？")) {
+            document.getElementById('rawData').value = "";
+            document.getElementById('genePaste').value = "";
+            refresh();
+        }
+    }
+
+    function refresh() {
+        const rowsCount = (currentMode === 96) ? 12 : 24;
+        const colsCount = (currentMode === 96) ? 8 : 16;
+        const totalWells = currentMode;
+
+        const rawText = document.getElementById('rawData').value.trim();
+        const rawItems = rawText.split(/[\t\n\r\s,，]+/).filter(Boolean);
+        dataMatrix = Array(totalWells).fill("");
+        rawItems.forEach((v, i) => { if(i < totalWells) dataMatrix[i] = v; });
+
+        const geneText = document.getElementById('genePaste').value;
+        genes = geneText.split(/[\n\r\t]+/).map(s => s.trim()).filter(s => s.length > 0);
+
+        const seqText = document.getElementById('sampleSeq').value;
+        groupConfig = seqText.split(/[,，\s]+/).map(v => parseInt(v)).filter(v => !isNaN(v));
+        const zoneH = groupConfig.reduce((a, b) => a + b, 0) || rowsCount;
+
+        const reps = parseInt(document.getElementById('repNum').value) || 1;
+        const rowZones = Math.floor(rowsCount / zoneH);
+        const colZones = Math.floor(colsCount / reps);
+        const totalZones = colZones * rowZones;
+
+        const visualList = document.getElementById('visualList');
+        visualList.innerHTML = '';
+        for(let i=0; i<totalZones; i++) {
+            const div = document.createElement('div');
+            div.className = 'visual-item';
+            div.innerHTML = `<b>${i+1}</b> ${genes[i] || '待输入...'}`;
+            visualList.appendChild(div);
+        }
+
+        const plate = document.getElementById('plate');
+        plate.style.gridTemplateColumns = `repeat(${colsCount}, 1fr)`;
+        plate.innerHTML = '';
+
+        const rowLabels = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X"];
+
+        for(let r=0; r<rowsCount; r++) {
+            for(let c=0; c<colsCount; c++) {
+                const idx = c * rowsCount + r;
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.innerHTML = `<span class="cell-label">${rowLabels[r]}${c+1}</span>${dataMatrix[idx] || ""}`;
+
+                const cz = Math.floor(c / reps);
+                const rz = Math.floor(r / zoneH);
+                const zoneId = cz * rowZones + rz;
+
+                if (zoneId < totalZones) {
+                    cell.style.background = zoneId % 2 === 0 ? '#eff6ff' : '#f8fafc';
+                    let relR = r % zoneH;
+                    let acc = 0;
+                    for(let i=0; i<groupConfig.length-1; i++) {
+                        acc += groupConfig[i];
+                        if(relR === acc - 1) cell.style.borderBottom = "2px dashed #f87171";
+                    }
+                }
+                plate.appendChild(cell);
+            }
+        }
+    }
+
+    async function exportExcel() {
+        const rowsCount = (currentMode === 96) ? 12 : 24;
+        const colsCount = (currentMode === 96) ? 8 : 16;
+        const reps = parseInt(document.getElementById('repNum').value) || 1;
+        const zoneH = groupConfig.reduce((a, b) => a + b, 0) || rowsCount;
+        const rowZones = Math.floor(rowsCount / zoneH);
+        const colZones = Math.floor(colsCount / reps);
+        const totalZones = colZones * rowZones;
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('重组结果');
+
+        let header1 = ["分组", "样本行"];
+        let header2 = ["", ""];
+        for(let i=0; i<totalZones; i++) {
+            header1.push(genes[i] || `基因${i+1}`);
+            for(let k=1; k<reps; k++) header1.push("");
+            for(let k=1; k<=reps; k++) header2.push("Rep" + k);
+        }
+        sheet.addRow(header1); sheet.addRow(header2);
+
+        groupConfig.forEach((count, gIdx) => {
+            for(let s=0; s<count; s++) {
+                let row = [`Group_${gIdx+1}`, s + 1];
+                for(let z=0; z<totalZones; z++) {
+                    const cz = Math.floor(z / rowZones);
+                    const rz = z % rowZones;
+                    const groupOffset = groupConfig.slice(0, gIdx).reduce((a,b)=>a+b, 0);
+                    const pR = rz * zoneH + groupOffset + s;
+                    const pC = cz * reps;
+                    for(let c=0; c<reps; c++) {
+                        row.push(dataMatrix[(pC + c) * rowsCount + pR] || "");
+                    }
+                }
+                sheet.addRow(row);
+            }
+        });
+
+        for(let i=0; i<totalZones; i++) {
+            const sc = 3 + (i * reps);
+            sheet.mergeCells(1, sc, 1, sc + reps - 1);
+            const c = sheet.getRow(1).getCell(sc);
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFA00' } };
+            c.font = { bold: true };
+        }
+
+        let rIdx = 3;
+        groupConfig.forEach(count => {
+            sheet.mergeCells(rIdx, 1, rIdx + count - 1, 1);
+            rIdx += count;
+        });
+
+        sheet.eachRow((r) => {
+            r.eachCell((c) => {
+                c.alignment = { vertical: 'middle', horizontal: 'center' };
+                c.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'}};
+            });
+        });
+
+        sheet.columns.forEach(c => { c.width = 12; });
+        const buffer = await workbook.xlsx.writeBuffer();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([buffer]));
+        link.download = `${currentMode}孔板导出.xlsx`;
+        link.click();
+    }
+
+    // ===== 新增：终完3 的“同文件内跳转”逻辑（不影响原有逻辑） =====
+    let terminalLoaded = false;
+
+    function enterTerminal() {
+        // 隐藏双4入口与主界面，显示终完3容器
+        document.getElementById('portal').style.display = 'none';
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('terminalWrap').style.display = 'block';
+
+        if(!terminalLoaded) {
+            const src = document.getElementById('terminal-srcdoc').innerHTML;
+            const frame = document.getElementById('terminalFrame');
+            frame.srcdoc = src;
+            terminalLoaded = true;
+        }
+    }
+
+    function backToPortalFromTerminal() {
+        document.getElementById('terminalWrap').style.display = 'none';
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('portal').style.display = 'flex';
+    }
 </script>
 </body>
 </html>
