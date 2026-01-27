@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PCR多孔板重组工具 v7.5 - 适配图片导出预览版</title>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+    <style>
+        :root { --primary: #4f46e5; --bg: #f1f5f9; --border: #cbd5e1; --success: #16a34a; --info: #0ea5e9; --danger: #ef4444; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); padding: 15px; margin: 0; }
+        .container { display: flex; gap: 20px; max-width: 98%; margin: 0 auto; height: calc(100vh - 40px); }
+        .panel-left { width: 250px; display: flex; flex-direction: column; gap: 15px; }
+        .panel-main { flex: 1; background: white; border-radius: 12px; border: 1px solid #e2e8f0; position: relative; padding: 75px 50px 50px 75px; overflow: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .panel-right { width: 250px; display: flex; flex-direction: column; gap: 15px; background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+        .card-inner { background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; font-size: 13px; }
+        textarea, input, select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 13px; box-sizing: border-box; }
+        .plate-container { position: relative; display: inline-block; }
+        .plate-grid { display: grid; background: #94a3b8; gap: 1px; border: 2px solid #475569; }
+        .plate-96 .cell { width: 75px; height: 48px; font-size: 13px; }
+        .plate-384 .cell { width: 44px; height: 28px; font-size: 10px; }
+        .cell { background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; font-weight: 500; }
+        .axis-label { position: absolute; font-weight: bold; color: #64748b; font-family: monospace; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .visual-list { flex: 1; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; }
+        .visual-item { padding: 8px 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 8px; }
+        .color-dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
+        .btn-export { background: var(--success); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; margin-top: 5px; transition: opacity 0.2s; }
+        .btn-plate-export { background: var(--info); }
+        /* 重置按钮样式 */
+        .btn-reset { background: var(--danger); color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; width: 100%; margin-top: 5px; transition: opacity 0.2s; }
+        .btn-export:hover, .btn-reset:hover { opacity: 0.9; }
+        .radio-group { display: flex; gap: 10px; margin-top: 5px; }
+        .radio-group label { display: flex; align-items: center; gap: 4px; font-weight: normal; cursor: pointer; }
+        h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--primary); border-left: 4px solid var(--primary); padding-left: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="panel-left">
+        <div class="card-inner">
+            <h3>1. 基础设置</h3>
+            <label>孔板版型与填充方向</label>
+            <select id="plateType" onchange="refresh()">
+                <option value="16,24,row">384孔 (16×24) - 横向 A1,A2...</option>
+                <option value="24,16,col">384孔 (24×16) - 纵向 A1,B1...</option>
+                <option value="8,12,row">96孔 (8×12) - 横向 A1,A2...</option>
+                <option value="12,8,col">96孔 (12×8) - 纵向 A1,B1...</option>
+            </select>
+            <div style="margin-top: 15px;">
+                <label>基因/靶标列表 (每行一个)</label>
+                <textarea id="genePaste" style="height: 150px;" oninput="refresh()" placeholder="例如：&#10;GAPDH&#10;ACTB"></textarea>
+            </div>
+        </div>
+        <div class="visual-list" id="visualList"></div>
+    </div>
+
+    <div class="panel-main">
+        <div class="plate-container" id="plateContainer">
+            <div id="plate" class="plate-grid"></div>
+        </div>
+    </div>
+
+    <div class="panel-right">
+        <h3>2. 数据与排列逻辑</h3>
+        <div class="card-inner">
+            <label>粘贴原始数据</label>
+            <textarea id="rawData" style="height: 180px; background: #fffdf2;" oninput="refresh()" placeholder="直接从Excel复制粘贴..."></textarea>
+        </div>
+
+        <div class="card-inner">
+            <label>重复数 (Rep)</label>
+            <input type="number" id="repNum" value="2" min="1" oninput="refresh()">
+            
+            <label style="margin-top: 15px;">样本分组方向</label>
+            <div class="radio-group">
+                <label><input type="radio" name="groupDir" value="row" checked onchange="refresh()"> 沿行排列</label>
+                <label><input type="radio" name="groupDir" value="col" onchange="refresh()"> 沿列排列</label>
+            </div>
+
+            <label style="margin-top: 15px;">样本分组序列</label>
+            <input type="text" id="sampleSeq" value="6, 6" oninput="refresh()">
+        </div>
+
+        <div style="flex: 1;"></div>
+        <button class="btn-export btn-plate-export" onclick="exportPlateLayout()">导出平面孔板 (同图片样式)</button>
+        <button class="btn-export" onclick="exportExcel()">整理并导出结果列表</button>
+        <button class="btn-reset" onclick="resetForm()">重置所有数据</button>
+    </div>
+</div>
+
+<script>
+    const colorLibrary = ['#eff6ff', '#fef2f2', '#f0fdf4', '#fff7ed', '#faf5ff', '#f5f3ff', '#f0fdfa', '#fff1f2', '#fdf2f8', '#f8fafc', '#e0f2fe', '#dcfce7', '#fef9c3', '#ffedd5', '#f3e8ff'];
+    let currentData = [];
+
+    function refresh() {
+        const [R, C, fillMode] = document.getElementById('plateType').value.split(',').map(v => isNaN(v)?v:parseInt(v));
+        const reps = parseInt(document.getElementById('repNum').value) || 1;
+        const groupDir = document.querySelector('input[name="groupDir"]:checked').value;
+        const groupConfig = document.getElementById('sampleSeq').value.split(/[,，\s]+/).map(Number).filter(v => v > 0);
+        const totalInGroup = groupConfig.reduce((a, b) => a + b, 0) || 1;
+        const genes = document.getElementById('genePaste').value.split(/[\n\r]+/).map(s => s.trim()).filter(Boolean);
+
+        const isRowDir = (groupDir === 'row');
+        const rowZonesCount = isRowDir ? Math.floor(R / totalInGroup) : Math.floor(R / reps);
+        const colZonesCount = isRowDir ? Math.floor(C / reps) : Math.floor(C / totalInGroup);
+
+        const rawItems = document.getElementById('rawData').value.trim().split(/[\t\n\r\s,，]+/).filter(Boolean);
+        currentData = Array(R * C).fill("");
+        rawItems.forEach((v, i) => { if(i < R*C) currentData[i] = v; });
+
+        const plate = document.getElementById('plate');
+        plate.className = `plate-grid ${R*C > 100 ? 'plate-384' : 'plate-96'}`;
+        plate.style.gridTemplateColumns = `repeat(${C}, auto)`;
+        plate.innerHTML = '';
+
+        for(let r=0; r<R; r++) {
+            for(let c=0; c<C; c++) {
+                const idx = (fillMode === 'row') ? (r * C + c) : (c * R + r);
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.textContent = currentData[idx] || '';
+
+                let zoneIdx = isRowDir ? (Math.floor(c / reps) * rowZonesCount + Math.floor(r / totalInGroup)) : (Math.floor(r / reps) * colZonesCount + Math.floor(c / totalInGroup));
+
+                if (zoneIdx < (rowZonesCount * colZonesCount)) {
+                    cell.style.backgroundColor = colorLibrary[zoneIdx % colorLibrary.length];
+                    if (isRowDir) {
+                        if ((c + 1) % reps === 0 && c !== C-1) cell.style.borderRight = "2px solid #64748b";
+                        let acc = 0;
+                        for(let g of groupConfig) { acc += g; if ((r % totalInGroup) === acc - 1) cell.style.borderBottom = "2px dashed #fda4af"; }
+                    } else {
+                        if ((r + 1) % reps === 0 && r !== R-1) cell.style.borderBottom = "2px solid #64748b";
+                        let acc = 0;
+                        for(let g of groupConfig) { acc += g; if ((c % totalInGroup) === acc - 1) cell.style.borderRight = "2px dashed #fda4af"; }
+                    }
+                }
+                plate.appendChild(cell);
+            }
+        }
+
+        const listEl = document.getElementById('visualList');
+        listEl.innerHTML = `<div style="padding:8px; font-weight:bold; background:#e2e8f0; font-size:11px;">区域及颜色对应:</div>`;
+        for(let i=0; i < (rowZonesCount * colZonesCount); i++) {
+            listEl.innerHTML += `<div class="visual-item"><div class="color-dot" style="background:${colorLibrary[i % colorLibrary.length]}"></div><b>${i+1}:</b> ${genes[i] || '--'}</div>`;
+        }
+        setTimeout(() => syncLabels(R, C, fillMode), 0);
+    }
+
+    function syncLabels(R, C, mode) {
+        document.querySelectorAll('.axis-label').forEach(el => el.remove());
+        const container = document.getElementById('plateContainer');
+        const plate = document.getElementById('plate');
+        const cells = plate.children;
+        if (!cells.length) return;
+        const rect = cells[0].getBoundingClientRect();
+        for(let r=0; r<R; r++) {
+            const lbl = document.createElement('div');
+            lbl.className = 'axis-label'; lbl.style.left = '-45px'; lbl.style.width = '40px';
+            lbl.style.top = (r * (rect.height + 1)) + 'px'; lbl.style.height = rect.height + 'px';
+            lbl.textContent = (mode === 'row') ? String.fromCharCode(65 + r) : (r + 1);
+            container.appendChild(lbl);
+        }
+        for(let c=0; c<C; c++) {
+            const lbl = document.createElement('div');
+            lbl.className = 'axis-label'; lbl.style.top = '-45px'; lbl.style.height = '40px';
+            lbl.style.left = (c * (rect.width + 1)) + 'px'; lbl.style.width = rect.width + 'px';
+            lbl.textContent = (mode === 'row') ? (c + 1) : String.fromCharCode(65 + c);
+            container.appendChild(lbl);
+        }
+    }
+
+    // 重置功能函数
+    function resetForm() {
+        if (confirm("确定要清空所有已输入的数据并将设置恢复初始吗？")) {
+            document.getElementById('genePaste').value = "";
+            document.getElementById('rawData').value = "";
+            document.getElementById('repNum').value = 2;
+            document.getElementById('sampleSeq').value = "6, 6";
+            document.getElementById('plateType').selectedIndex = 0;
+            document.querySelector('input[name="groupDir"][value="row"]').checked = true;
+            refresh();
+        }
+    }
+
+    async function exportPlateLayout() {
+        const [R, C, fillMode] = document.getElementById('plateType').value.split(',').map(v => isNaN(v)?v:parseInt(v));
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Plate Layout');
+        sheet.columns = Array(C + 1).fill(0).map((_, i) => ({ width: i === 0 ? 5 : 8.5 }));
+        for (let i = 1; i <= R + 1; i++) { sheet.getRow(i).height = 20; }
+        for(let c=0; c<C; c++) {
+            const cell = sheet.getCell(1, c + 2);
+            cell.value = (fillMode === 'row') ? (c + 1) : String.fromCharCode(65 + c);
+            cell.font = { bold: true, size: 10, name: 'Arial' };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { bottom: { style: 'thin' } };
+        }
+        for(let r=0; r<R; r++) {
+            const cell = sheet.getCell(r + 2, 1);
+            cell.value = (fillMode === 'row') ? String.fromCharCode(65 + r) : (r + 1);
+            cell.font = { bold: true, size: 10, name: 'Arial' };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { right: { style: 'thin' } };
+        }
+        for(let r=0; r<R; r++) {
+            for(let c=0; c<C; c++) {
+                const idx = (fillMode === 'row') ? (r * C + c) : (c * R + r);
+                const excelCell = sheet.getCell(r + 2, c + 2);
+                const val = currentData[idx];
+                if (val !== "" && !isNaN(val)) {
+                    excelCell.value = parseFloat(val);
+                    excelCell.numFmt = '0.000';
+                } else { excelCell.value = val; }
+                excelCell.style = {
+                    font: { size: 9, name: 'Arial' },
+                    alignment: { horizontal: 'center', vertical: 'middle' },
+                    border: {
+                        top: { style: 'thin', color: { argb: 'FF000000' } },
+                        left: { style: 'thin', color: { argb: 'FF000000' } },
+                        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                        right: { style: 'thin', color: { argb: 'FF000000' } }
+                    }
+                };
+            }
+        }
+        const buf = await workbook.xlsx.writeBuffer();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([buf]));
+        link.download = `Plate_Layout_${R}x${C}.xlsx`;
+        link.click();
+    }
+
+    async function exportExcel() {
+        const [R, C, fillMode] = document.getElementById('plateType').value.split(',').map(v => isNaN(v)?v:parseInt(v));
+        const reps = parseInt(document.getElementById('repNum').value) || 1;
+        const groupDir = document.querySelector('input[name="groupDir"]:checked').value;
+        const groupConfig = document.getElementById('sampleSeq').value.split(/[,，\s]+/).map(Number).filter(v => v > 0);
+        const totalInGroup = groupConfig.reduce((a, b) => a + b, 0);
+        const genes = document.getElementById('genePaste').value.split(/[\n\r]+/).map(s => s.trim()).filter(Boolean);
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('重组结果');
+        const isRowDir = (groupDir === 'row');
+        const rowZonesCount = isRowDir ? Math.floor(R / totalInGroup) : Math.floor(R / reps);
+        const colZonesCount = isRowDir ? Math.floor(C / reps) : Math.floor(C / totalInGroup);
+        const totalZones = rowZonesCount * colZonesCount;
+
+        let h1 = ["Group", "Sample"], h2 = ["", ""];
+        for(let i=0; i<totalZones; i++) {
+            h1.push(genes[i] || `区域${i+1}`);
+            for(let k=1; k<reps; k++) h1.push(""); 
+            for(let k=1; k<=reps; k++) h2.push(`Rep${k}`);
+        }
+        sheet.addRow(h1); 
+        sheet.addRow(h2);
+
+        groupConfig.forEach((count, gIdx) => {
+            const prevSum = groupConfig.slice(0, gIdx).reduce((a,b)=>a+b, 0);
+            for(let s=0; s<count; s++) {
+                let rowData = [`Group_${gIdx+1}`, s + 1];
+                for(let z=0; z<totalZones; z++) {
+                    const zCol = isRowDir ? Math.floor(z / rowZonesCount) : (z % colZonesCount);
+                    const zRow = isRowDir ? (z % rowZonesCount) : Math.floor(z / colZonesCount);
+                    for(let k=0; k<reps; k++) {
+                        let fR = isRowDir ? (zRow * totalInGroup + prevSum + s) : (zRow * reps + k);
+                        let fC = isRowDir ? (zCol * reps + k) : (zCol * totalInGroup + prevSum + s);
+                        const idx = (fillMode === 'row') ? (fR * C + fC) : (fC * R + fR);
+                        rowData.push(currentData[idx] || "");
+                    }
+                }
+                sheet.addRow(rowData);
+            }
+        });
+
+        sheet.eachRow((row, i) => {
+            row.eachCell(c => {
+                c.alignment = { vertical:'middle', horizontal:'center' };
+                c.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+                if(i <= 2) { 
+                    c.font={bold:true}; 
+                    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF5F5F5'}}; 
+                }
+                if(i === 1 && c.col > 2) {
+                    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE0E7FF'}};
+                }
+            });
+        });
+
+        for(let i=0; i<totalZones; i++) {
+            if(reps > 1) {
+                const startCol = 3 + i * reps;
+                const endCol = startCol + reps - 1;
+                sheet.mergeCells(1, startCol, 1, endCol);
+            }
+        }
+        
+        sheet.columns.forEach(c => { c.width = 12; });
+        const buf = await workbook.xlsx.writeBuffer();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([buf]));
+        link.download = `PCR_Reorder_Result.xlsx`; 
+        link.click();
+    }
+    refresh();
+</script>
+</body>
+</html>
