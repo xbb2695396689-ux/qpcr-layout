@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CCK-8 与智能梯度稀释计算器合并版</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; background:#eef2f7; font-family:Arial,'Microsoft YaHei',sans-serif; color:#222; }
+  .topbar { position:sticky; top:0; z-index:10; background:#fff; border-bottom:1px solid #dbe1ea; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+  .top-inner { max-width:1250px; margin:0 auto; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .title { font-weight:800; font-size:18px; }
+  .tabs { display:flex; gap:10px; flex-wrap:wrap; }
+  .tab { border:0; border-radius:999px; padding:9px 16px; cursor:pointer; background:#e5e7eb; color:#374151; font-weight:700; }
+  .tab.active { background:#2563eb; color:#fff; }
+  .frame-wrap { max-width:1250px; margin:18px auto; padding:0 12px 20px; }
+  iframe { width:100%; min-height:1150px; border:0; border-radius:14px; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="top-inner">
+      <div class="title">合并版稀释计算器</div>
+      <div class="tabs">
+        <button class="tab active" onclick="showTool('cck8')">智能梯度稀释计算器</button>
+        <button class="tab" onclick="showTool('gradient')">智能浓度稀释计算器</button>
+      </div>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <iframe id="cck8" title="智能梯度稀释计算器" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;UTF-8&quot; /&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot; /&gt;
+&lt;title&gt;智能梯度稀释计算器&lt;/title&gt;
+&lt;style&gt;
+body{font-family:Arial,&#x27;Microsoft YaHei&#x27;,sans-serif;background:#f6f7fb;margin:0;padding:24px;color:#222}.wrap{max-width:1250px;margin:auto;background:#fff;border-radius:14px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)}h1{margin-top:0}.desc{color:#666;line-height:1.7}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}label{font-weight:600;font-size:14px}input,textarea,select{width:100%;box-sizing:border-box;margin-top:6px;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:15px}textarea{min-height:72px}.btns{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}button{border:0;border-radius:8px;padding:10px 18px;font-size:15px;cursor:pointer;background:#2563eb;color:white}button.secondary{background:#666}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}th,td{border:1px solid #ddd;padding:9px;text-align:center}th{background:#f0f4ff}.note{background:#fff7df;border-left:4px solid #f59e0b;padding:12px;margin-top:16px;line-height:1.7}.ok{background:#ecfdf5;border-left-color:#10b981}.small{font-size:13px;color:#666}.section{margin-top:26px}.danger{color:#b91c1c;font-weight:700}.sourceBox{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-top:12px}.hidden{display:none}.editable-cell{background:#fffef7}.editable-cell:focus{outline:2px solid #2563eb;outline-offset:-2px;background:#eff6ff}.exportHint{font-size:13px;color:#666;margin:8px 0}.miniBtn{background:#0f766e}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class=&quot;wrap&quot;&gt;
+&lt;h1&gt;智能梯度稀释计算器&lt;/h1&gt;
+&lt;p class=&quot;desc&quot;&gt;新增：① 第一个/任意浓度的来源可选择母液或中间液；② 逐级稀释时，会自动把“后面低浓度要吸走的体积”加到前面高浓度的配制量里，保证每个浓度最后仍然保留你设定的实验用最终体积。&lt;/p&gt;
+&lt;div class=&quot;grid&quot;&gt;
+&lt;div&gt;&lt;label&gt;母液浓度&lt;/label&gt;&lt;input id=&quot;stock&quot; type=&quot;number&quot; value=&quot;10&quot; step=&quot;0.01&quot;&gt;&lt;select id=&quot;stockUnit&quot;&gt;&lt;option value=&quot;1000000&quot;&gt;M&lt;/option&gt;&lt;option value=&quot;1000&quot; selected&gt;mM&lt;/option&gt;&lt;option value=&quot;1&quot;&gt;μM&lt;/option&gt;&lt;option value=&quot;0.001&quot;&gt;nM&lt;/option&gt;&lt;option value=&quot;0.000001&quot;&gt;pM&lt;/option&gt;&lt;/select&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;中间液浓度&lt;/label&gt;&lt;input id=&quot;intermediate&quot; type=&quot;number&quot; value=&quot;100&quot; step=&quot;0.01&quot;&gt;&lt;select id=&quot;interUnit&quot;&gt;&lt;option value=&quot;1000000&quot;&gt;M&lt;/option&gt;&lt;option value=&quot;1000&quot;&gt;mM&lt;/option&gt;&lt;option value=&quot;1&quot; selected&gt;μM&lt;/option&gt;&lt;option value=&quot;0.001&quot;&gt;nM&lt;/option&gt;&lt;option value=&quot;0.000001&quot;&gt;pM&lt;/option&gt;&lt;/select&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;中间液配制体积 μL&lt;/label&gt;&lt;input id=&quot;interVol&quot; type=&quot;number&quot; value=&quot;1000&quot; step=&quot;1&quot;&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;目标浓度 μM，用逗号分隔&lt;/label&gt;&lt;textarea id=&quot;targets&quot;&gt;20,10,5,2,1,0.5&lt;/textarea&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;每孔加药体积 μL&lt;/label&gt;&lt;input id=&quot;perWell&quot; type=&quot;number&quot; value=&quot;100&quot; step=&quot;1&quot;&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;每个浓度复孔数&lt;/label&gt;&lt;input id=&quot;replicates&quot; type=&quot;number&quot; value=&quot;5&quot; step=&quot;1&quot;&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;额外余量 %&lt;/label&gt;&lt;input id=&quot;extra&quot; type=&quot;number&quot; value=&quot;10&quot; step=&quot;1&quot;&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;每个浓度实验用最终体积 μL&lt;/label&gt;&lt;input id=&quot;manualFinal&quot; type=&quot;number&quot; placeholder=&quot;例如 1000；留空则自动按孔数计算&quot;&gt;&lt;/div&gt;
+&lt;div&gt;&lt;label&gt;稀释模式&lt;/label&gt;&lt;select id=&quot;mode&quot; onchange=&quot;renderSourceSelectors()&quot;&gt;&lt;option value=&quot;direct&quot;&gt;全部从中间液配&lt;/option&gt;&lt;option value=&quot;custom&quot;&gt;自定义来源/逐级稀释&lt;/option&gt;&lt;/select&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;div id=&quot;sourcePanel&quot; class=&quot;sourceBox hidden&quot;&gt;&lt;/div&gt;
+&lt;div class=&quot;btns&quot;&gt;&lt;button onclick=&quot;calculate()&quot;&gt;计算&lt;/button&gt;&lt;button class=&quot;secondary&quot; onclick=&quot;resetDefault()&quot;&gt;恢复默认&lt;/button&gt;&lt;button class=&quot;secondary miniBtn&quot; onclick=&quot;exportExcel()&quot;&gt;导出当前表格 Excel&lt;/button&gt;&lt;/div&gt;
+&lt;div id=&quot;output&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;script&gt;
+function fmt(n){if(!isFinite(n))return &#x27;-&#x27;;if(Math.abs(n)&gt;=100)return n.toFixed(1).replace(/\.0$/,&#x27;&#x27;);if(Math.abs(n)&gt;=10)return n.toFixed(2).replace(/0+$/,&#x27;&#x27;).replace(/\.$/,&#x27;&#x27;);return n.toFixed(3).replace(/0+$/,&#x27;&#x27;).replace(/\.$/,&#x27;&#x27;)}
+function getTargets(){return document.getElementById(&#x27;targets&#x27;).value.split(&#x27;,&#x27;).map(x=&gt;Number(x.trim())).filter(x=&gt;x&gt;0).sort((a,b)=&gt;b-a)}
+function sourceKey(c){return &#x27;src_&#x27;+String(c).replace(&#x27;.&#x27;,&#x27;_&#x27;)}
+function stockUM(){return Number(document.getElementById(&#x27;stock&#x27;).value)*Number(document.getElementById(&#x27;stockUnit&#x27;).value)}
+function interUM(){return Number(document.getElementById(&#x27;intermediate&#x27;).value)*Number(document.getElementById(&#x27;interUnit&#x27;).value)}
+function renderSourceSelectors(){
+ const mode=document.getElementById(&#x27;mode&#x27;).value; const panel=document.getElementById(&#x27;sourcePanel&#x27;);
+ if(mode!==&#x27;custom&#x27;){panel.classList.add(&#x27;hidden&#x27;);panel.innerHTML=&#x27;&#x27;;return}
+ const targets=getTargets(); const sUM=stockUM(), iUM=interUM();
+ let html=&#x27;&lt;b&gt;自定义每个浓度的来源&lt;/b&gt;&lt;p class=&quot;small&quot;&gt;第一个浓度也可以选择“母液”或“中间液”。来源浓度必须高于目标浓度。&lt;/p&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;目标浓度&lt;/th&gt;&lt;th&gt;来源选择&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&#x27;;
+ targets.forEach((c,i)=&gt;{
+   html+=`&lt;tr&gt;&lt;td&gt;${fmt(c)} μM&lt;/td&gt;&lt;td&gt;&lt;select id=&quot;${sourceKey(c)}&quot;&gt;`;
+   html+=`&lt;option value=&quot;stock&quot;&gt;${fmt(sUM)} μM 母液&lt;/option&gt;`;
+   html+=`&lt;option value=&quot;inter&quot;&gt;${fmt(iUM)} μM 中间液&lt;/option&gt;`;
+   targets.filter(x=&gt;x&gt;c).forEach(x=&gt;{html+=`&lt;option value=&quot;${x}&quot;&gt;${fmt(x)} μM 工作液&lt;/option&gt;`});
+   html+=&#x27;&lt;/select&gt;&lt;/td&gt;&lt;/tr&gt;&#x27;;
+ });
+ html+=&#x27;&lt;/tbody&gt;&lt;/table&gt;&lt;button class=&quot;secondary&quot; onclick=&quot;setSerialDefault()&quot;&gt;一键设置为逐级稀释&lt;/button&gt;&#x27;;
+ panel.innerHTML=html;panel.classList.remove(&#x27;hidden&#x27;);setSerialDefault(false);
+}
+function setSerialDefault(force=true){
+ const targets=getTargets();
+ targets.forEach((c,i)=&gt;{const sel=document.getElementById(sourceKey(c)); if(!sel)return; if(i===0){sel.value=&#x27;inter&#x27;;return} const higher=targets[i-1]; if([...sel.options].some(o=&gt;o.value==higher)) sel.value=String(higher);});
+ if(force) calculate();
+}
+[&#x27;targets&#x27;,&#x27;intermediate&#x27;,&#x27;stock&#x27;].forEach(id=&gt;document.getElementById(id).addEventListener(&#x27;input&#x27;,renderSourceSelectors));
+[&#x27;interUnit&#x27;,&#x27;stockUnit&#x27;].forEach(id=&gt;document.getElementById(id).addEventListener(&#x27;change&#x27;,renderSourceSelectors));
+
+function debounce(fn, wait=250){let timer;return function(){clearTimeout(timer);timer=setTimeout(fn,wait)}}
+function makeResultTablesEditable(){
+  const out=document.getElementById(&#x27;output&#x27;);
+  out.querySelectorAll(&#x27;#cck8WorkTable tbody td&#x27;).forEach(td=&gt;{
+    td.contentEditable=&#x27;true&#x27;;
+    td.classList.add(&#x27;editable-cell&#x27;);
+    td.title=&#x27;可直接修改；同一行相关体积会实时联动更新，导出 Excel 时保留当前内容&#x27;;
+  });
+  bindEditableTableRealtime();
+}
+function numFromText(t){
+  const m=String(t||&#x27;&#x27;).replace(/，/g,&#x27;.&#x27;).match(/-?\d+(?:\.\d+)?/);
+  return m?Number(m[0]):NaN;
+}
+function setCellText(cell, value){
+  if(!cell || document.activeElement===cell) return;
+  cell.innerText=fmt(value)+&#x27; μL&#x27;;
+}
+function setPlainCellText(cell, text){
+  if(!cell || document.activeElement===cell) return;
+  cell.innerHTML=text;
+}
+
+function rowClassText(row, cls){return row.querySelector(&#x27;.&#x27;+cls)?.innerText || &#x27;&#x27;}
+function recalcEditableTable(changedRow=null, changedClass=&#x27;&#x27;){
+  const table=document.getElementById(&#x27;cck8WorkTable&#x27;);
+  if(!table) return;
+  const rows=[...table.querySelectorAll(&#x27;tbody tr&#x27;)];
+  const data=rows.map(row=&gt;({
+    row,
+    target:numFromText(rowClassText(row,&#x27;c-target&#x27;)),
+    source:numFromText(rowClassText(row,&#x27;c-source&#x27;)),
+    total:numFromText(rowClassText(row,&#x27;c-total&#x27;)),
+    sourceVol:numFromText(rowClassText(row,&#x27;c-sourcevol&#x27;)),
+    diluent:numFromText(rowClassText(row,&#x27;c-diluent&#x27;)),
+    taken:numFromText(rowClassText(row,&#x27;c-taken&#x27;)),
+    finalVol:numFromText(rowClassText(row,&#x27;c-final&#x27;))
+  }));
+
+  // 把用户正在修改的这一格先转成“最终保留体积”或基础参数，随后全表统一重算。
+  if(changedRow){
+    const d=data.find(x=&gt;x.row===changedRow);
+    if(d){
+      if(changedClass.includes(&#x27;c-total&#x27;) &amp;&amp; isFinite(d.total) &amp;&amp; isFinite(d.taken)) d.finalVol=Math.max(d.total-d.taken,0);
+      if(changedClass.includes(&#x27;c-taken&#x27;) &amp;&amp; isFinite(d.total) &amp;&amp; isFinite(d.taken)) d.finalVol=Math.max(d.total-d.taken,0);
+      if((changedClass.includes(&#x27;c-sourcevol&#x27;)||changedClass.includes(&#x27;c-diluent&#x27;)) &amp;&amp; isFinite(d.sourceVol) &amp;&amp; isFinite(d.diluent) &amp;&amp; isFinite(d.taken)) d.finalVol=Math.max(d.sourceVol+d.diluent-d.taken,0);
+    }
+  }
+
+  data.forEach(d=&gt;{
+    if(!isFinite(d.finalVol)) d.finalVol=isFinite(d.total)&amp;&amp;isFinite(d.taken)?Math.max(d.total-d.taken,0):0;
+    d.total=d.finalVol;
+    d.taken=0;
+    d.sourceVol=0;
+    d.diluent=0;
+  });
+
+  // 从低浓度往高浓度回推：某一行作为后续来源时，需要额外多配被吸走体积。
+  for(let i=data.length-1;i&gt;=0;i--){
+    const d=data[i];
+    if(isFinite(d.target)&amp;&amp;isFinite(d.source)&amp;&amp;d.source&gt;0){
+      d.sourceVol=d.target*d.total/d.source;
+      d.diluent=d.total-d.sourceVol;
+      const srcRow=data.find(x=&gt;isFinite(x.target) &amp;&amp; Math.abs(x.target-d.source)&lt;1e-9);
+      if(srcRow &amp;&amp; d.source&gt;d.target){
+        srcRow.total += d.sourceVol;
+        srcRow.taken = srcRow.total - srcRow.finalVol;
+      }
+    }
+  }
+
+  // 来源行被加量后，再按新总量计算自身取源液和培养基体积。
+  data.forEach(d=&gt;{
+    if(isFinite(d.target)&amp;&amp;isFinite(d.source)&amp;&amp;d.source&gt;0){
+      d.sourceVol=d.target*d.total/d.source;
+      d.diluent=d.total-d.sourceVol;
+    }
+    d.taken=d.total-d.finalVol;
+  });
+
+  data.forEach(d=&gt;{
+    setCellText(d.row.querySelector(&#x27;.c-total&#x27;), d.total);
+    setCellText(d.row.querySelector(&#x27;.c-sourcevol&#x27;), d.sourceVol);
+    setCellText(d.row.querySelector(&#x27;.c-diluent&#x27;), d.diluent);
+    setCellText(d.row.querySelector(&#x27;.c-taken&#x27;), d.taken);
+    setCellText(d.row.querySelector(&#x27;.c-final&#x27;), d.finalVol);
+    let note=&#x27;可操作&#x27;;
+    if(!isFinite(d.target)||!isFinite(d.source)||d.source&lt;=d.target) note=&#x27;&lt;span class=&quot;danger&quot;&gt;来源浓度必须高于目标浓度&lt;/span&gt;&#x27;;
+    else if(d.sourceVol&lt;1) note=&#x27;&lt;span class=&quot;danger&quot;&gt;吸取体积偏小，建议增大最终体积或改用逐级稀释&lt;/span&gt;&#x27;;
+    setPlainCellText(d.row.querySelector(&#x27;.c-note&#x27;), note);
+  });
+}
+function updateEditableRow(row, changedClass=&#x27;&#x27;){
+  recalcEditableTable(row, changedClass);
+}
+function bindEditableTableRealtime(){
+  const table=document.getElementById(&#x27;cck8WorkTable&#x27;);
+  if(!table) return;
+  table.querySelectorAll(&#x27;tbody tr&#x27;).forEach(row=&gt;{
+    row.querySelectorAll(&#x27;td&#x27;).forEach(td=&gt;{
+      td.addEventListener(&#x27;input&#x27;,()=&gt;recalcEditableTable(row,td.className));
+      td.addEventListener(&#x27;blur&#x27;,()=&gt;recalcEditableTable(row,td.className));
+    });
+  });
+}
+function tableToExcelHtml(){
+  const out=document.getElementById(&#x27;output&#x27;);
+  const tables=[...out.querySelectorAll(&#x27;table&#x27;)];
+  if(!tables.length) return &#x27;&#x27;;
+  let html=&#x27;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;UTF-8&quot;&gt;&lt;/head&gt;&lt;body&gt;&#x27;;
+  html+=&#x27;&lt;h2&gt;CCK-8 药物稀释计算结果&lt;/h2&gt;&#x27;;
+  tables.forEach((table,i)=&gt;{
+    const title=i===0?&#x27;来源选择/工作液配制表&#x27;:&#x27;工作液配制表&#x27;;
+    html+=&#x27;&lt;h3&gt;&#x27;+title+&#x27;&lt;/h3&gt;&#x27;;
+    html+=&#x27;&lt;table border=&quot;1&quot; cellspacing=&quot;0&quot; cellpadding=&quot;6&quot;&gt;&#x27;;
+    table.querySelectorAll(&#x27;tr&#x27;).forEach(tr=&gt;{
+      html+=&#x27;&lt;tr&gt;&#x27;;
+      tr.querySelectorAll(&#x27;th,td&#x27;).forEach(cell=&gt;{
+        const tag=cell.tagName.toLowerCase();
+        html+=&#x27;&lt;&#x27;+tag+&#x27;&gt;&#x27;+cell.innerText.replace(/&amp;/g,&#x27;&amp;amp;&#x27;).replace(/&lt;/g,&#x27;&amp;lt;&#x27;).replace(/&gt;/g,&#x27;&amp;gt;&#x27;)+&#x27;&lt;/&#x27;+tag+&#x27;&gt;&#x27;;
+      });
+      html+=&#x27;&lt;/tr&gt;&#x27;;
+    });
+    html+=&#x27;&lt;/table&gt;&lt;br&gt;&#x27;;
+  });
+  html+=&#x27;&lt;/body&gt;&lt;/html&gt;&#x27;;
+  return html;
+}
+function exportExcel(){
+  const data=tableToExcelHtml();
+  if(!data){alert(&#x27;请先生成表格。&#x27;);return;}
+  const blob=new Blob([&#x27;\ufeff&#x27;+data],{type:&#x27;application/vnd.ms-excel;charset=utf-8;&#x27;});
+  const a=document.createElement(&#x27;a&#x27;);
+  a.href=URL.createObjectURL(blob);
+  a.download=&#x27;CCK8药物稀释计算结果.xls&#x27;;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=&gt;URL.revokeObjectURL(a.href),1000);
+}
+function bindRealtimeUpdate(){
+  const auto=debounce(()=&gt;{renderSourceSelectors();calculate();},200);
+  document.querySelectorAll(&#x27;input,textarea,select&#x27;).forEach(el=&gt;{
+    if(el.id &amp;&amp; el.id.startsWith(&#x27;src_&#x27;)) return;
+    el.addEventListener(&#x27;input&#x27;,auto);
+    el.addEventListener(&#x27;change&#x27;,auto);
+  });
+  document.getElementById(&#x27;sourcePanel&#x27;).addEventListener(&#x27;change&#x27;,()=&gt;calculate());
+}
+
+function resetDefault(){document.getElementById(&#x27;stock&#x27;).value=10;document.getElementById(&#x27;stockUnit&#x27;).value=1000;document.getElementById(&#x27;intermediate&#x27;).value=100;document.getElementById(&#x27;interUnit&#x27;).value=1;document.getElementById(&#x27;interVol&#x27;).value=1000;document.getElementById(&#x27;targets&#x27;).value=&#x27;20,10,5,2,1,0.5&#x27;;document.getElementById(&#x27;perWell&#x27;).value=100;document.getElementById(&#x27;replicates&#x27;).value=5;document.getElementById(&#x27;extra&#x27;).value=10;document.getElementById(&#x27;manualFinal&#x27;).value=&#x27;&#x27;;document.getElementById(&#x27;mode&#x27;).value=&#x27;direct&#x27;;renderSourceSelectors();calculate()}
+function getSource(c, mode){
+ const sUM=stockUM(), iUM=interUM();
+ if(mode===&#x27;custom&#x27;){
+   const sel=document.getElementById(sourceKey(c)); const val=sel?sel.value:&#x27;inter&#x27;;
+   if(val===&#x27;stock&#x27;) return {key:&#x27;stock&#x27;, conc:sUM, name:`${fmt(sUM)} μM 母液`};
+   if(val===&#x27;inter&#x27;) return {key:&#x27;inter&#x27;, conc:iUM, name:`${fmt(iUM)} μM 中间液`};
+   return {key:String(val), conc:Number(val), name:`${fmt(Number(val))} μM 工作液`};
+ }
+ return {key:&#x27;inter&#x27;, conc:iUM, name:`${fmt(iUM)} μM 中间液`};
+}
+function calculate(){
+ const sUM=stockUM(), iUM=interUM(), interVol=Number(document.getElementById(&#x27;interVol&#x27;).value), targets=getTargets();
+ const perWell=Number(document.getElementById(&#x27;perWell&#x27;).value), reps=Number(document.getElementById(&#x27;replicates&#x27;).value), extra=Number(document.getElementById(&#x27;extra&#x27;).value)/100, manual=Number(document.getElementById(&#x27;manualFinal&#x27;).value);
+ const finalVol=manual&gt;0?manual:perWell*reps*(1+extra); const mode=document.getElementById(&#x27;mode&#x27;).value;
+ if(sUM&lt;=0||iUM&lt;=0||interVol&lt;=0||targets.length===0||finalVol&lt;=0){document.getElementById(&#x27;output&#x27;).innerHTML=&#x27;&lt;p class=&quot;danger&quot;&gt;请检查输入值。&lt;/p&gt;&#x27;;return}
+ const need={}; targets.forEach(c=&gt;need[String(c)]=finalVol);
+ if(mode===&#x27;custom&#x27;){
+   [...targets].reverse().forEach(c=&gt;{
+     const src=getSource(c,mode);
+     if(targets.includes(src.conc) &amp;&amp; src.conc&gt;c){
+       need[String(src.conc)] += c*need[String(c)]/src.conc;
+     }
+   });
+ }
+ let useFromInter=0, useFromStockForTargets=0;
+ targets.forEach(c=&gt;{const src=getSource(c,mode); const v=c*need[String(c)]/src.conc; if(src.key===&#x27;inter&#x27;)useFromInter+=v; if(src.key===&#x27;stock&#x27;)useFromStockForTargets+=v;});
+ const stockForInter=iUM*interVol/sUM, diluentForInter=interVol-stockForInter;
+ let warnInter=useFromInter&gt;interVol?`&lt;br&gt;&lt;span class=&quot;danger&quot;&gt;注意：当前方案需要使用中间液 ${fmt(useFromInter)} μL，已超过你设置的中间液配制体积 ${fmt(interVol)} μL，请增大中间液配制体积。&lt;/span&gt;`:`&lt;br&gt;本方案预计会使用中间液 &lt;b&gt;${fmt(useFromInter)} μL&lt;/b&gt;。`;
+ let html=`&lt;div class=&quot;section note ok&quot;&gt;&lt;b&gt;第一步：配 ${fmt(iUM)} μM 中间液&lt;/b&gt;&lt;br&gt;取 &lt;b&gt;${fmt(stockForInter)} μL&lt;/b&gt; ${fmt(sUM)} μM 母液，加 &lt;b&gt;${fmt(diluentForInter)} μL&lt;/b&gt; 培养基/溶剂，最终体积 &lt;b&gt;${fmt(interVol)} μL&lt;/b&gt;。${warnInter}&lt;/div&gt;`;
+ html+=`&lt;div class=&quot;section&quot;&gt;&lt;h2&gt;第二步：配各浓度工作液&lt;/h2&gt;&lt;p class=&quot;small&quot;&gt;每个浓度需要保留的实验用最终体积：&lt;b&gt;${fmt(finalVol)} μL&lt;/b&gt;${manual&gt;0?&#x27;（手动指定）&#x27;:&#x27;（按每孔体积 × 复孔数 × 余量计算）&#x27;}。如果某个浓度还要作为后面低浓度的来源，系统会额外多配被吸走的体积。&lt;/p&gt;&lt;p class=&quot;exportHint&quot;&gt;表格内容可直接点击单元格修改；同一行相关体积会实时联动更新，导出 Excel 时会保留当前显示内容。&lt;/p&gt;&lt;table id=&quot;cck8WorkTable&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;目标浓度&lt;/th&gt;&lt;th&gt;来源浓度&lt;/th&gt;&lt;th&gt;取来源液&lt;/th&gt;&lt;th&gt;加培养基/完全培养液&lt;/th&gt;&lt;th&gt;实际配制总量&lt;/th&gt;&lt;th&gt;后续被吸走&lt;/th&gt;&lt;th&gt;最终保留体积&lt;/th&gt;&lt;th&gt;备注&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;`;
+ targets.forEach(c=&gt;{
+   const src=getSource(c,mode); const total=need[String(c)], v1=c*total/src.conc, dil=total-v1, taken=total-finalVol;
+   let note=&#x27;可操作&#x27;; if(src.conc&lt;=c) note=&#x27;&lt;span class=&quot;danger&quot;&gt;来源浓度必须高于目标浓度&lt;/span&gt;&#x27;; else if(v1&lt;1) note=&#x27;&lt;span class=&quot;danger&quot;&gt;吸取体积偏小，建议增大最终体积或改用逐级稀释&lt;/span&gt;&#x27;;
+   html+=`&lt;tr&gt;&lt;td class=&quot;c-target&quot;&gt;${fmt(c)} μM&lt;/td&gt;&lt;td class=&quot;c-source&quot;&gt;${src.name}&lt;/td&gt;&lt;td class=&quot;c-sourcevol&quot;&gt;${fmt(v1)} μL&lt;/td&gt;&lt;td class=&quot;c-diluent&quot;&gt;${fmt(dil)} μL&lt;/td&gt;&lt;td class=&quot;c-total&quot;&gt;${fmt(total)} μL&lt;/td&gt;&lt;td class=&quot;c-taken&quot;&gt;${fmt(taken)} μL&lt;/td&gt;&lt;td class=&quot;c-final&quot;&gt;${fmt(finalVol)} μL&lt;/td&gt;&lt;td class=&quot;c-note&quot;&gt;${note}&lt;/td&gt;&lt;/tr&gt;`;
+ });
+ html+=`&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class=&quot;section note&quot;&gt;&lt;b&gt;说明：&lt;/b&gt;“实际配制总量”= 实验最终要保留的体积 + 后面低浓度稀释要从这里吸走的体积。所以逐级稀释后，每个浓度仍然会剩下设定的最终体积，不会被后续吸取扣掉。&lt;/div&gt;`;
+ document.getElementById(&#x27;output&#x27;).innerHTML=html;
+ makeResultTablesEditable();
+}
+
+renderSourceSelectors();calculate();bindRealtimeUpdate();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;"></iframe>
+    <iframe id="gradient" class="hidden" title="智能浓度稀释计算器" srcdoc="&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;UTF-8&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot; /&gt;
+  &lt;title&gt;智能浓度稀释计算器&lt;/title&gt;
+  &lt;style&gt;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Microsoft YaHei&quot;, Arial, sans-serif;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 18px 60px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: .5px;
+    }
+    .sub {
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 12px 35px rgba(15, 23, 42, .08);
+      border: 1px solid #e5e7eb;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      margin: 14px 0 8px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    input, select, button, textarea {
+      font: inherit;
+    }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: #fff;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+    }
+    .small {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      font-weight: 600;
+    }
+    .check input { width: auto; }
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 18px;
+    }
+    button:hover { background: #1d4ed8; }
+    .ghost {
+      background: #eef2ff;
+      color: #1d4ed8;
+    }
+    .ghost:hover { background: #dbeafe; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 13px;
+    }
+    .stat b {
+      display: block;
+      font-size: 20px;
+      margin-top: 3px;
+    }
+    .plan {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      margin: 12px 0;
+      background: #fff;
+    }
+    .plan.recommend {
+      border-color: #2563eb;
+      box-shadow: 0 8px 24px rgba(37,99,235,.12);
+    }
+    .plan-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .badge {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 14px;
+    }
+    th { background: #f9fafb; }
+    tr:last-child td { border-bottom: 0; }
+    .warn {
+      background: #fff7ed;
+      color: #9a3412;
+      border: 1px solid #fed7aa;
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin: 10px 0;
+    }
+    .ok {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin: 10px 0;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+    }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class=&quot;wrap&quot;&gt;
+    &lt;h1&gt;智能浓度稀释计算器&lt;/h1&gt;
+    &lt;div class=&quot;sub&quot;&gt;输入起始浓度、目标浓度和允许的稀释倍数，自动生成可行稀释路径与每步移液方案。&lt;/div&gt;
+
+    &lt;div class=&quot;grid&quot;&gt;
+      &lt;div class=&quot;card&quot;&gt;
+        &lt;label&gt;起始浓度&lt;/label&gt;
+        &lt;div class=&quot;row&quot;&gt;
+          &lt;input id=&quot;startVal&quot; type=&quot;number&quot; value=&quot;10&quot; step=&quot;any&quot; /&gt;
+          &lt;select id=&quot;startUnit&quot;&gt;
+            &lt;option value=&quot;1000000&quot;&gt;M&lt;/option&gt;
+            &lt;option value=&quot;1000&quot; selected&gt;mM&lt;/option&gt;
+            &lt;option value=&quot;1&quot;&gt;μM&lt;/option&gt;
+            &lt;option value=&quot;0.001&quot;&gt;nM&lt;/option&gt;
+            &lt;option value=&quot;0.000001&quot;&gt;pM&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+
+        &lt;label&gt;目标浓度&lt;/label&gt;
+        &lt;div class=&quot;row&quot;&gt;
+          &lt;input id=&quot;targetVal&quot; type=&quot;number&quot; value=&quot;100&quot; step=&quot;any&quot; /&gt;
+          &lt;select id=&quot;targetUnit&quot;&gt;
+            &lt;option value=&quot;1000000&quot;&gt;M&lt;/option&gt;
+            &lt;option value=&quot;1000&quot;&gt;mM&lt;/option&gt;
+            &lt;option value=&quot;1&quot; selected&gt;μM&lt;/option&gt;
+            &lt;option value=&quot;0.001&quot;&gt;nM&lt;/option&gt;
+            &lt;option value=&quot;0.000001&quot;&gt;pM&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+
+        &lt;label&gt;允许每步稀释倍数&lt;/label&gt;
+        &lt;div class=&quot;checks&quot; id=&quot;factorChecks&quot;&gt;&lt;/div&gt;
+        &lt;label&gt;自定义倍数，用英文逗号分隔&lt;/label&gt;
+        &lt;input id=&quot;customFactors&quot; value=&quot;&quot; placeholder=&quot;例如：3, 4, 25, 200&quot; /&gt;
+        &lt;div class=&quot;small&quot;&gt;例如只勾选 10 和 100，系统只会使用 10× 或 100× 组合。&lt;/div&gt;
+
+        &lt;label&gt;每步终体积&lt;/label&gt;
+        &lt;div class=&quot;row&quot;&gt;
+          &lt;input id=&quot;stepVolume&quot; type=&quot;number&quot; value=&quot;1000&quot; step=&quot;any&quot; /&gt;
+          &lt;select id=&quot;volUnit&quot;&gt;
+            &lt;option value=&quot;μL&quot; selected&gt;μL&lt;/option&gt;
+            &lt;option value=&quot;mL&quot;&gt;mL&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+
+        &lt;label&gt;最小建议吸液量&lt;/label&gt;
+        &lt;div class=&quot;row&quot;&gt;
+          &lt;input id=&quot;minPipette&quot; type=&quot;number&quot; value=&quot;2&quot; step=&quot;any&quot; /&gt;
+          &lt;select&gt;
+            &lt;option&gt;μL&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+
+        &lt;label&gt;最大步骤数&lt;/label&gt;
+        &lt;input id=&quot;maxSteps&quot; type=&quot;number&quot; value=&quot;6&quot; /&gt;
+
+        &lt;button onclick=&quot;calculate()&quot;&gt;生成稀释方案&lt;/button&gt;
+        &lt;button class=&quot;ghost&quot; onclick=&quot;resetDemo()&quot;&gt;恢复示例&lt;/button&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;card&quot;&gt;
+        &lt;div id=&quot;output&quot;&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+&lt;script&gt;
+const defaultFactors = [2,5,10,20,50,100];
+const checkedDefault = new Set([10,100]);
+
+function initChecks() {
+  const box = document.getElementById(&#x27;factorChecks&#x27;);
+  box.innerHTML = &#x27;&#x27;;
+  defaultFactors.forEach(f =&gt; {
+    const div = document.createElement(&#x27;label&#x27;);
+    div.className = &#x27;check&#x27;;
+    div.innerHTML = `&lt;input type=&quot;checkbox&quot; value=&quot;${f}&quot; ${checkedDefault.has(f) ? &#x27;checked&#x27; : &#x27;&#x27;}&gt; ${f}×`;
+    box.appendChild(div);
+  });
+}
+
+function resetDemo() {
+  document.getElementById(&#x27;startVal&#x27;).value = 10;
+  document.getElementById(&#x27;startUnit&#x27;).value = 1000;
+  document.getElementById(&#x27;targetVal&#x27;).value = 100;
+  document.getElementById(&#x27;targetUnit&#x27;).value = 1;
+  document.getElementById(&#x27;customFactors&#x27;).value = &#x27;&#x27;;
+  document.getElementById(&#x27;stepVolume&#x27;).value = 1000;
+  document.getElementById(&#x27;minPipette&#x27;).value = 2;
+  document.getElementById(&#x27;maxSteps&#x27;).value = 6;
+  initChecks();
+  calculate();
+}
+
+function getFactors() {
+  const checked = [...document.querySelectorAll(&#x27;#factorChecks input:checked&#x27;)].map(x =&gt; Number(x.value));
+  const custom = document.getElementById(&#x27;customFactors&#x27;).value
+    .split(&#x27;,&#x27;)
+    .map(x =&gt; Number(x.trim()))
+    .filter(x =&gt; Number.isFinite(x) &amp;&amp; x &gt; 1);
+  return [...new Set([...checked, ...custom])].sort((a,b) =&gt; b-a);
+}
+
+function nearlyEqual(a,b,tol=1e-9) {
+  return Math.abs(a-b) &lt;= tol * Math.max(1, Math.abs(a), Math.abs(b));
+}
+
+function findPlans(totalFactor, factors, maxSteps) {
+  const plans = [];
+  function dfs(current, path, startIdx) {
+    if (path.length &gt; maxSteps) return;
+    if (nearlyEqual(current, totalFactor)) {
+      plans.push([...path]);
+      return;
+    }
+    if (current &gt; totalFactor * (1 + 1e-9)) return;
+    if (path.length === maxSteps) return;
+
+    for (let i=0; i&lt;factors.length; i++) {
+      const next = current * factors[i];
+      if (next &lt;= totalFactor * (1 + 1e-9)) {
+        dfs(next, [...path, factors[i]], i);
+      }
+    }
+  }
+  dfs(1, [], 0);
+
+  const unique = [];
+  const seen = new Set();
+  for (const p of plans) {
+    const key = p.slice().sort((a,b)=&gt;b-a).join(&#x27;x&#x27;);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(p.slice().sort((a,b)=&gt;b-a));
+    }
+  }
+  return unique;
+}
+
+function scorePlan(plan, stepVolume, minPipette) {
+  const minSample = Math.min(...plan.map(f =&gt; stepVolume / f));
+  let score = plan.length * 100;
+  if (minSample &lt; minPipette) score += 1000 + (minPipette - minSample) * 10;
+  score += plan.filter(f =&gt; ![10,100,2,5,20,50].includes(f)).length * 10;
+  return score;
+}
+
+function renderPlan(plan, idx, stepVolume, volUnit, minPipette, recommend=false) {
+  let currentName = idx === 0 ? &#x27;原液&#x27; : &#x27;上一步溶液&#x27;;
+  let rows = &#x27;&#x27;;
+  let hasWarn = false;
+
+  plan.forEach((f, i) =&gt; {
+    const sample = stepVolume / f;
+    const diluent = stepVolume - sample;
+    if (sample &lt; minPipette) hasWarn = true;
+    rows += `&lt;tr&gt;
+      &lt;td&gt;第${i+1}步&lt;/td&gt;
+      &lt;td&gt;${f}×&lt;/td&gt;
+      &lt;td&gt;取 ${formatNum(sample)} ${volUnit} ${i===0 ? &#x27;原液&#x27; : &#x27;上一步溶液&#x27;}&lt;/td&gt;
+      &lt;td&gt;加 ${formatNum(diluent)} ${volUnit} 溶剂&lt;/td&gt;
+      &lt;td&gt;得到 ${formatNum(stepVolume)} ${volUnit}&lt;/td&gt;
+    &lt;/tr&gt;`;
+  });
+
+  return `&lt;div class=&quot;plan ${recommend ? &#x27;recommend&#x27; : &#x27;&#x27;}&quot;&gt;
+    &lt;div class=&quot;plan-title&quot;&gt;
+      &lt;div&gt;&lt;b&gt;方案${idx+1}：${plan.join(&#x27;×&#x27;)} = ${formatNum(product(plan))}×&lt;/b&gt;&lt;/div&gt;
+      ${recommend ? &#x27;&lt;span class=&quot;badge&quot;&gt;推荐&lt;/span&gt;&#x27; : `&lt;span class=&quot;badge&quot;&gt;${plan.length}步&lt;/span&gt;`}
+    &lt;/div&gt;
+    ${hasWarn ? `&lt;div class=&quot;warn&quot;&gt;注意：该方案中存在低于最小建议吸液量的步骤，建议调大每步终体积或选择较小稀释倍数。&lt;/div&gt;` : `&lt;div class=&quot;ok&quot;&gt;所有步骤吸液量均不低于最小建议吸液量。&lt;/div&gt;`}
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;
+          &lt;th&gt;步骤&lt;/th&gt;&lt;th&gt;稀释倍数&lt;/th&gt;&lt;th&gt;取样&lt;/th&gt;&lt;th&gt;加溶剂&lt;/th&gt;&lt;th&gt;终体积&lt;/th&gt;
+        &lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;${rows}&lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/div&gt;`;
+}
+
+function product(arr) {
+  return arr.reduce((a,b)=&gt;a*b,1);
+}
+
+function formatNum(n) {
+  if (Math.abs(n) &gt;= 1000) return Number(n.toFixed(2)).toLocaleString();
+  if (Math.abs(n) &gt;= 1) return Number(n.toFixed(3)).toString();
+  return Number(n.toPrecision(4)).toString();
+}
+
+function calculate() {
+  const start = Number(document.getElementById(&#x27;startVal&#x27;).value) * Number(document.getElementById(&#x27;startUnit&#x27;).value);
+  const target = Number(document.getElementById(&#x27;targetVal&#x27;).value) * Number(document.getElementById(&#x27;targetUnit&#x27;).value);
+  const factors = getFactors();
+  const stepVolume = Number(document.getElementById(&#x27;stepVolume&#x27;).value);
+  const volUnit = document.getElementById(&#x27;volUnit&#x27;).value;
+  const minPipette = Number(document.getElementById(&#x27;minPipette&#x27;).value);
+  const maxSteps = Number(document.getElementById(&#x27;maxSteps&#x27;).value);
+  const output = document.getElementById(&#x27;output&#x27;);
+
+  if (!start || !target || start &lt;= 0 || target &lt;= 0) {
+    output.innerHTML = `&lt;div class=&quot;warn&quot;&gt;请输入有效浓度。&lt;/div&gt;`;
+    return;
+  }
+  if (target &gt;= start) {
+    output.innerHTML = `&lt;div class=&quot;warn&quot;&gt;目标浓度必须低于起始浓度，当前不是稀释，而是浓缩或不需要稀释。&lt;/div&gt;`;
+    return;
+  }
+  if (!factors.length) {
+    output.innerHTML = `&lt;div class=&quot;warn&quot;&gt;请至少选择一个允许稀释倍数。&lt;/div&gt;`;
+    return;
+  }
+
+  const totalFactor = start / target;
+  let plans = findPlans(totalFactor, factors, maxSteps);
+  plans = plans
+    .sort((a,b) =&gt; scorePlan(a, stepVolume, minPipette) - scorePlan(b, stepVolume, minPipette))
+    .slice(0, 10);
+
+  let html = `&lt;div class=&quot;summary&quot;&gt;
+    &lt;div class=&quot;stat&quot;&gt;起始浓度&lt;b&gt;${formatNum(start)} μM&lt;/b&gt;&lt;/div&gt;
+    &lt;div class=&quot;stat&quot;&gt;目标浓度&lt;b&gt;${formatNum(target)} μM&lt;/b&gt;&lt;/div&gt;
+    &lt;div class=&quot;stat&quot;&gt;总稀释倍数&lt;b&gt;${formatNum(totalFactor)}×&lt;/b&gt;&lt;/div&gt;
+    &lt;div class=&quot;stat&quot;&gt;允许倍数&lt;b&gt;${factors.join(&#x27;, &#x27;)}&lt;/b&gt;&lt;/div&gt;
+  &lt;/div&gt;`;
+
+  if (!plans.length) {
+    html += `&lt;div class=&quot;warn&quot;&gt;在当前允许倍数和最大步骤数内，找不到完全匹配方案。&lt;/div&gt;`;
+    html += `&lt;div class=&quot;small&quot;&gt;建议：增加最大步骤数，或加入新的稀释倍数，例如 2、5、10、20、50、100。&lt;/div&gt;`;
+  } else {
+    html += plans.map((p,i) =&gt; renderPlan(p, i, stepVolume, volUnit, minPipette, i===0)).join(&#x27;&#x27;);
+  }
+  output.innerHTML = html;
+}
+
+initChecks();
+calculate();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+  </div>
+<script>
+function showTool(id){
+  document.getElementById('cck8').classList.toggle('hidden',id!=='cck8');
+  document.getElementById('gradient').classList.toggle('hidden',id!=='gradient');
+  document.querySelectorAll('.tab').forEach((btn,i)=>btn.classList.toggle('active',(id==='cck8'&&i===0)||(id==='gradient'&&i===1)));
+}
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
